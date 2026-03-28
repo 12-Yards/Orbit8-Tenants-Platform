@@ -1,0 +1,855 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model ArticleCategories {
+  id          Int       @id @default(autoincrement())
+  name        String
+  icon        String?   @default("folder")
+  orderIndex  Int?      @default(0) @map("order_index")
+  createdAt   DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@unique([name, tenantId])
+  @@map("article_categories")
+}
+
+model ArticleLikes {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  articleId  String @db.VarChar(36) @map("article_id")
+  userId     String @db.VarChar(255) @map("user_id")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("article_likes")
+}
+
+model ArticleSections {
+  id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  articleId       String  @db.VarChar(36) @map("article_id")
+  orderIndex      Int @map("order_index")
+  sectionType     String @map("section_type")
+  heading         String?
+  content         String?
+  mediaUrls       Json?   @default("[]") @map("media_urls")
+  mediaCaptions   Json?   @default("[]") @db.Json @map("media_captions")
+  muxPlaybackId   String? @map("mux_playback_id")
+  muxAssetId      String? @map("mux_asset_id")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("article_sections")
+}
+
+model Articles {
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  title          String
+  slug           String
+  category       String
+  excerpt        String
+  content        String
+  heroImageUrl   String @map("hero_image_url")
+  publishedAt    String @map("published_at")
+  author         String
+  readingTime    Int @map("reading_time")
+  boostedLikes   Int?   @default(0) @map("boosted_likes")
+  imageUrls      Json?  @default("[]") @map("image_urls")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@unique([slug, tenantId])
+  @@map("articles")
+}
+
+model Comments {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  articleId         String    @db.VarChar(36) @map("article_id")
+  userId            String    @db.VarChar(255) @map("user_id")
+  content           String
+  createdAt         DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  parentCommentId   String?   @db.VarChar(36) @map("parent_comment_id")
+  updatedAt         DateTime? @db.Timestamp(6) @map("updated_at")
+  edited            Boolean?  @default(false)
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("comments")
+}
+
+model CompetitionBrackets {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  eventId      String    @unique @db.VarChar(36) @map("event_id")
+  totalRounds  Int @map("total_rounds")
+  createdAt    DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("competition_brackets")
+}
+
+model CompetitionMatches {
+  id                          String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  roundId                     String    @db.VarChar(36) @map("round_id")
+  matchNumber                 Int @map("match_number")
+  team1Id                     String?   @db.VarChar(36) @map("team1_id")
+  team2Id                     String?   @db.VarChar(36) @map("team2_id")
+  winnerId                    String?   @db.VarChar(36) @map("winner_id")
+  score1                      Int?
+  score2                      Int?
+  createdAt                   DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  resultSubmittedByTeamId     String?   @db.VarChar(36) @map("result_submitted_by_team_id")
+  proposedWinnerId            String?   @db.VarChar(36) @map("proposed_winner_id")
+  resultSubmittedByUserId     String?   @db.VarChar(36) @map("result_submitted_by_user_id")
+  resultConfirmedByUserId     String?   @db.VarChar(36) @map("result_confirmed_by_user_id")
+  resultConfirmedAt           DateTime? @db.Timestamp(6) @map("result_confirmed_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("competition_matches")
+}
+
+model CompetitionRounds {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  bracketId    String    @db.VarChar(36) @map("bracket_id")
+  roundNumber  Int @map("round_number")
+  roundName    String @map("round_name")
+  deadline     DateTime? @db.Timestamp(6)
+  createdAt    DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("competition_rounds")
+}
+
+model CompetitionTeams {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  eventId          String    @db.VarChar(36) @map("event_id")
+  teamNumber       Int @map("team_number")
+  player1EntryId   String?   @db.VarChar(40) @map("player1_entry_id")
+  player2EntryId   String?   @db.VarChar(40) @map("player2_entry_id")
+  createdAt        DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  player3EntryId   String?   @db.VarChar(40) @map("player3_entry_id")
+  player4EntryId   String?   @db.VarChar(40) @map("player4_entry_id")
+  player5EntryId   String?   @db.VarChar(40) @map("player5_entry_id")
+  player6EntryId   String?   @db.VarChar(40) @map("player6_entry_id")
+  teamStableford   Int? @map("team_stableford")
+  teeTime          String?   @db.VarChar(10) @map("tee_time")
+  teamHandicap     Int? @map("team_handicap")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("competition_teams")
+}
+
+model ConnectionNotifications {
+  id              Int       @id @default(autoincrement())
+  userId          String    @db.VarChar(255) @map("user_id")
+  type            String
+  connectionId    Int? @map("connection_id")
+  isRead          Boolean?  @default(false) @map("is_read")
+  createdAt       DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  messageId       Int? @map("message_id")
+  fromUserId      String?   @db.VarChar(255) @map("from_user_id")
+  eventId         String?   @db.VarChar(255) @map("event_id")
+  teamId          String?   @db.VarChar(255) @map("team_id")
+  matchId         String?   @db.VarChar(255) @map("match_id")
+  metadata        String?
+  playRequestId   Int? @map("play_request_id")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("connection_notifications")
+}
+
+model ContactRequests {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  name       String
+  email      String
+  phone      String?
+  message    String
+  type       String    @default("Contact Form")
+  createdAt  DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  isRead     Boolean?  @default(false) @map("is_read")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("contact_requests")
+}
+
+model EventAttendees {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  eventId       String    @db.VarChar(36) @map("event_id")
+  userId        String    @db.VarChar(255) @map("user_id")
+  createdAt     DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  status        String    @default("attending") @db.VarChar(20)
+  ticketNumber  Int? @map("ticket_number")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("event_attendees")
+}
+
+model EventCategories {
+  id          Int       @id @default(autoincrement())
+  name        String
+  icon        String?   @default("calendar")
+  orderIndex  Int?      @default(0) @map("order_index")
+  createdAt   DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@unique([name, tenantId])
+  @@map("event_categories")
+}
+
+model EventEntries {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  eventId             String    @db.VarChar(36) @map("event_id")
+  userId              String    @db.VarChar(36) @map("user_id")
+  teamName            String? @map("team_name")
+  playerNames         Json?     @default("[]") @db.Json @map("player_names")
+  enteredAt           DateTime? @default(now()) @db.Timestamp(6) @map("entered_at")
+  paymentStatus       String?   @default("pending") @map("payment_status")
+  paymentAmount       String? @map("payment_amount")
+  signupType          String?   @default("team") @map("signup_type")
+  playerCount         Int?      @default(1) @map("player_count")
+  assignedPlayerIds   Json?     @default("[]") @map("assigned_player_ids")
+  score               Int?
+  playerScores        Json?     @default("{}") @db.Json @map("player_scores")
+  stripePaymentId     String? @map("stripe_payment_id")
+  playerHandicaps     Json?     @default("{}") @db.Json @map("player_handicaps")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("event_entries")
+}
+
+model EventSuggestions {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  userId            String    @db.VarChar(255) @map("user_id")
+  name              String
+  startDate         String @map("start_date")
+  endDate           String? @map("end_date")
+  venueName         String @map("venue_name")
+  address           String
+  summary           String
+  description       String
+  imageUrl          String? @map("image_url")
+  tags              Json?     @default("[]") @db.Json
+  ticketUrl         String? @map("ticket_url")
+  status            String    @default("pending")
+  createdAt         DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  reviewedAt        DateTime? @db.Timestamp(6) @map("reviewed_at")
+  reviewedBy        String?   @db.VarChar(255) @map("reviewed_by")
+  rejectionReason   String? @map("rejection_reason")
+  groupEventId      String?   @db.VarChar(36) @map("group_event_id")
+  approvedEventId   String?   @db.VarChar(36) @map("approved_event_id")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("event_suggestions")
+}
+
+model Events {
+  id                            String   @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  name                          String
+  startDate                     String @map("start_date")
+  endDate                       String? @map("end_date")
+  venueName                     String @map("venue_name")
+  address                       String
+  summary                       String
+  description                   String
+  imageUrl                      String @map("image_url")
+  tags                          Json?    @default("[]") @db.Json
+  ticketUrl                     String? @map("ticket_url")
+  isFeatured                    Boolean? @default(false) @map("is_featured")
+  slug                          String
+  isEventGroup                  Boolean? @default(false) @map("is_event_group")
+  linkedGroupId                 String?  @db.VarChar(36) @map("linked_group_id")
+  isCarousel                    Boolean? @default(false) @map("is_carousel")
+  eventType                     String?  @default("standard") @map("event_type")
+  maxEntries                    Int? @map("max_entries")
+  teamSize                      Int? @map("team_size")
+  entryFee                      String? @map("entry_fee")
+  signupDeadline                String? @map("signup_deadline")
+  competitionFormat             String? @map("competition_format")
+  allowIndividualStableford     Boolean? @default(false) @map("allow_individual_stableford")
+  stripeProductId               String? @map("stripe_product_id")
+  stripePriceId                 String? @map("stripe_price_id")
+  leagueTableSortOrder          String?  @default("highest_first") @map("league_table_sort_order")
+  allowTeamHandicap             Boolean? @default(false) @map("allow_team_handicap")
+  adminLastSeenEntrantCount     Int?     @default(0) @map("admin_last_seen_entrant_count")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@unique([slug, tenantId])
+  @@map("events")
+}
+
+model GroupEventComments {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  eventId           String    @db.VarChar(36) @map("event_id")
+  userId            String    @db.VarChar(255) @map("user_id")
+  parentCommentId   String?   @db.VarChar(36) @map("parent_comment_id")
+  content           String
+  createdAt         DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("group_event_comments")
+}
+
+model GroupEventReactions {
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  eventId       String @db.VarChar(36) @map("event_id")
+  userId        String @db.VarChar(255) @map("user_id")
+  reactionType  String @map("reaction_type")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("group_event_reactions")
+}
+
+model GroupEvents {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  groupId        String    @db.VarChar(36) @map("group_id")
+  userId         String    @db.VarChar(255) @map("user_id")
+  name           String
+  startDate      String @map("start_date")
+  endDate        String? @map("end_date")
+  venueName      String @map("venue_name")
+  address        String
+  summary        String
+  description    String
+  imageUrl       String? @map("image_url")
+  tags           Json?     @default("[]") @db.Json
+  ticketUrl      String? @map("ticket_url")
+  showOnPublic   Boolean?  @default(false) @map("show_on_public")
+  createdAt      DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("group_events")
+}
+
+model GroupMemberships {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  groupId      String    @db.VarChar(36) @map("group_id")
+  userId       String    @db.VarChar(255) @map("user_id")
+  role         String    @default("member")
+  status       String    @default("pending")
+  requestedAt  DateTime? @default(now()) @db.Timestamp(6) @map("requested_at")
+  approvedAt   DateTime? @db.Timestamp(6) @map("approved_at")
+  approvedBy   String?   @db.VarChar(255) @map("approved_by")
+
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@unique([groupId, userId], map: "group_member_unique")
+  @@map("group_memberships")
+}
+
+model GroupPostComments {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  postId            String    @db.VarChar(36) @map("post_id")
+  userId            String    @db.VarChar(255) @map("user_id")
+  parentCommentId   String?   @db.VarChar(36) @map("parent_comment_id")
+  content           String
+  createdAt         DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("group_post_comments")
+}
+
+model GroupPostReactions {
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  postId        String @db.VarChar(36) @map("post_id")
+  userId        String @db.VarChar(255) @map("user_id")
+  reactionType  String @map("reaction_type")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("group_post_reactions")
+}
+
+model GroupPosts {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  groupId    String    @db.VarChar(36) @map("group_id")
+  userId     String    @db.VarChar(255) @map("user_id")
+  content    String
+  imageUrls  Json?     @default("[]") @db.Json @map("image_urls")
+  createdAt  DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  updatedAt  DateTime? @db.Timestamp(6) @map("updated_at")
+  edited     Boolean?  @default(false)
+  category   String    @default("Social")
+  postType   String    @default("post") @map("post_type")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("group_posts")
+}
+
+model Groups {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  name        String
+  slug        String
+  description String
+  imageUrl    String? @map("image_url")
+  createdBy   String    @db.VarChar(255) @map("created_by")
+  createdAt   DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  isActive    Boolean?  @default(true) @map("is_active")
+  isPublic    Boolean?  @default(false) @map("is_public")
+  eventId     String?   @db.VarChar(36) @map("event_id")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@unique([slug, tenantId])
+  @@map("groups")
+}
+
+model HeroSettings {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  title     String
+  subtitle  String
+  imageUrl  String @map("image_url")
+  ctaText   String? @map("cta_text")
+  ctaLink   String? @map("cta_link")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("hero_settings")
+}
+
+model InsiderTips {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  title     String
+  tip       String
+  author    String
+  isActive  Boolean? @default(true) @map("is_active")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("insider_tips")
+}
+
+model MemberReviews {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  userId      String    @db.VarChar(255) @map("user_id")
+  category    String
+  placeName   String @map("place_name")
+  title       String
+  summary     String
+  liked       String
+  disliked    String
+  rating      Int
+  imageUrl    String? @map("image_url")
+  status      String    @default("pending")
+  createdAt   DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  reviewedAt  DateTime? @db.Timestamp(6) @map("reviewed_at")
+  reviewedBy  String?   @db.VarChar(255) @map("reviewed_by")
+  slug        String
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@unique([slug, tenantId])
+  @@map("member_reviews")
+}
+
+model Messages {
+  id          Int       @id @default(autoincrement())
+  senderId    String    @db.VarChar(255) @map("sender_id")
+  receiverId  String    @db.VarChar(255) @map("receiver_id")
+  content     String
+  isRead      Boolean?  @default(false) @map("is_read")
+  createdAt   DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("messages")
+}
+
+model NewsletterSubscriptions {
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  email         String
+  subscribedAt  String @map("subscribed_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@unique([email, tenantId])
+  @@map("newsletter_subscriptions")
+}
+
+model PlayRequestCriteria {
+  id              Int    @id @default(autoincrement())
+  playRequestId   Int @map("play_request_id")
+  fieldId         Int @map("field_id")
+  value           String
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("play_request_criteria")
+}
+
+model PlayRequestOfferCriteria {
+  id                    Int    @id @default(autoincrement())
+  playRequestOfferId    Int @map("play_request_offer_id")
+  fieldId               Int @map("field_id")
+  fieldLabel            String @map("field_label")
+  value                 String
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("play_request_offer_criteria")
+}
+
+model PlayRequestOffers {
+  id              Int       @id @default(autoincrement())
+  playRequestId   Int @map("play_request_id")
+  userId          String @map("user_id")
+  note            String?
+  status          String?   @default("pending")
+  createdAt       DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  responseNote    String? @map("response_note")
+  clubName        String? @map("club_name")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("play_request_offers")
+}
+
+model PlayRequests {
+  id         Int       @id @default(autoincrement())
+  userId     String    @db.VarChar(255) @map("user_id")
+  guests     String[]  @default([])
+  startDate  DateTime  @db.Timestamp(6) @map("start_date")
+  startTime  String? @map("start_time")
+  endDate    DateTime? @db.Timestamp(6) @map("end_date")
+  endTime    String? @map("end_time")
+  message    String?
+  status     String?   @default("active")
+  createdAt  DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("play_requests")
+}
+
+model PodcastComments {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  podcastId         String    @db.VarChar(36) @map("podcast_id")
+  userId            String    @db.VarChar(255) @map("user_id")
+  parentCommentId   String?   @db.VarChar(36) @map("parent_comment_id")
+  content           String
+  createdAt         DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  updatedAt         DateTime? @db.Timestamp(6) @map("updated_at")
+  edited            Boolean?  @default(false)
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("podcast_comments")
+}
+
+model PodcastLikes {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  podcastId  String @db.VarChar(36) @map("podcast_id")
+  userId     String @db.VarChar(255) @map("user_id")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("podcast_likes")
+}
+
+model Podcasts {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  title          String
+  slug           String
+  excerpt        String
+  content        String
+  heroImageUrl   String? @map("hero_image_url")
+  mediaUrl       String? @map("media_url")
+  mediaType      String?   @default("link") @map("media_type")
+  author         String
+  publishedAt    String @map("published_at")
+  isActive       Boolean?  @default(true) @map("is_active")
+  createdAt      DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@unique([slug, tenantId])
+  @@map("podcasts")
+}
+
+model PollVotes {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  pollId       String    @db.VarChar(36) @map("poll_id")
+  userId       String    @db.VarChar(255) @map("user_id")
+  optionIndex  Int @map("option_index")
+  createdAt    DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("poll_votes")
+}
+
+model Polls {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  title          String
+  imageUrl       String @map("image_url")
+  options        Json
+  startDate      DateTime  @db.Timestamp(6) @map("start_date")
+  durationHours  Int @map("duration_hours")
+  createdAt      DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  isActive       Boolean?  @default(true) @map("is_active")
+  slug           String
+  optionImages   Json?     @default("[]") @db.Json @map("option_images")
+  article        String?
+  boostedVotes   Int?      @default(0) @map("boosted_votes")
+  pollType       String    @default("standard") @map("poll_type")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@unique([slug, tenantId])
+  @@map("polls")
+}
+
+model ProfileFieldDefinitions {
+  id                         Int       @id @default(autoincrement())
+  label                      String
+  slug                       String
+  fieldType                  String    @default("text") @map("field_type")
+  description                String?
+  isRequired                 Boolean?  @default(false) @map("is_required")
+  orderIndex                 Int?      @default(0) @map("order_index")
+  createdAt                  DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  useOnPlayRequests          Boolean?  @default(true) @map("use_on_play_requests")
+  useOnTeeTimes              Boolean?  @default(true) @map("use_on_tee_times")
+  useOnPlayRequestOffers     Boolean?  @default(true) @map("use_on_play_request_offers")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@unique([slug, tenantId])
+  @@map("profile_field_definitions")
+}
+
+model ProfileFieldOptions {
+  id          Int    @id @default(autoincrement())
+  fieldId     Int @map("field_id")
+  label       String
+  value       String
+  orderIndex  Int?   @default(0) @map("order_index")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("profile_field_options")
+}
+
+model ProfileFieldSelectorValues {
+  id         Int       @id @default(autoincrement())
+  fieldId    Int @map("field_id")
+  value      String
+  createdAt  DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("profile_field_selector_values")
+}
+
+model ProfilePictures {
+  id          Int       @id @default(autoincrement())
+  userId      String    @db.VarChar(255) @map("user_id")
+  imageUrl    String @map("image_url")
+  caption     String?
+  orderIndex  Int?      @default(0) @map("order_index")
+  createdAt   DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("profile_pictures")
+}
+
+model RankingVotes {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  pollId     String    @db.VarChar(36) @map("poll_id")
+  userId     String    @db.VarChar(255) @map("user_id")
+  ranking    Json      @db.Json
+  createdAt  DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("ranking_votes")
+}
+
+model ReviewCategories {
+  id          Int       @id @default(autoincrement())
+  name        String
+  icon        String?   @default("folder")
+  orderIndex  Int?      @default(0) @map("order_index")
+  createdAt   DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@unique([name, tenantId])
+  @@map("review_categories")
+}
+
+model ReviewComments {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  reviewId          String    @db.VarChar(36) @map("review_id")
+  userId            String    @db.VarChar(255) @map("user_id")
+  parentCommentId   String?   @db.VarChar(36) @map("parent_comment_id")
+  content           String
+  createdAt         DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  updatedAt         DateTime? @db.Timestamp(6) @map("updated_at")
+  edited            Boolean?  @default(false)
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("review_comments")
+}
+
+model ReviewLikes {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  reviewId  String @db.VarChar(36) @map("review_id")
+  userId    String @db.VarChar(255) @map("user_id")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("review_likes")
+}
+
+model Sessions {
+  sid    String   @id @db.VarChar
+  sess   Json
+  expire DateTime @db.Timestamp(6)
+
+  @@index([expire], map: "IDX_session_expire")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("sessions")
+}
+
+model SiteSettings {
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  showStay                 Boolean?  @default(true) @map("show_stay")
+  showEvents               Boolean?  @default(true) @map("show_events")
+  showReviews              Boolean?  @default(true) @map("show_reviews")
+  showCommunity            Boolean?  @default(true) @map("show_community")
+  updatedAt                DateTime? @default(now()) @db.Timestamp(6) @map("updated_at")
+  showEcommerce            Boolean?  @default(false) @map("show_ecommerce")
+  platformName             String?   @default("Mumbles Vibe") @map("platform_name")
+  twitterUrl               String? @map("twitter_url")
+  instagramUrl             String? @map("instagram_url")
+  tagline                  String?   @default("Your community guide to the beautiful seaside village of Mumbles, Swansea. Discover local gems, upcoming events, and find the perfect place to stay.")
+  logoUrl                  String? @map("logo_url")
+  termsOfService           String? @map("terms_of_service")
+  privacyPolicy            String? @map("privacy_policy")
+  faviconUrl               String? @map("favicon_url")
+  useDefaultTerms          Boolean?  @default(false) @map("use_default_terms")
+  useDefaultPrivacy        Boolean?  @default(false) @map("use_default_privacy")
+  showConnections          Boolean?  @default(true) @map("show_connections")
+  ctaHeading               String?   @default("Got something to say?") @map("cta_heading")
+  ctaDescription           String?   @default("Have a recommendation or need one? Share with the community.") @map("cta_description")
+  ctaButtonText            String?   @default("Join the Conversation") @map("cta_button_text")
+  showWhereToStay          Boolean?  @default(true) @map("show_where_to_stay")
+  youtubeUrl               String? @map("youtube_url")
+  linkedinUrl              String? @map("linkedin_url")
+  tiktokUrl                String? @map("tiktok_url")
+  snapchatUrl              String? @map("snapchat_url")
+  showPlay                 Boolean?  @default(true) @map("show_play")
+  currency                 String?   @default("$")
+  showPodcasts             Boolean?  @default(false) @map("show_podcasts")
+  platformLive             Boolean?  @default(false) @map("platform_live")
+  fillCompetitionAllowed   Boolean?  @default(true) @map("fill_competition_allowed")
+  allowPlatformLogin       Boolean?  @default(true) @map("allow_platform_login")
+  primaryColor             String?   @map("primary_color")
+  secondaryColor           String?   @map("secondary_color")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("site_settings")
+}
+
+model SubscriptionPlans {
+  id                          Int       @id @default(autoincrement())
+  name                        String
+  slug                        String
+  description                 String?
+  price                       Float     @default(0) @db.Real
+  billingPeriod               String?   @default("monthly") @map("billing_period")
+  isActive                    Boolean?  @default(true) @map("is_active")
+  orderIndex                  Int?      @default(0) @map("order_index")
+  featureEditorial            Boolean?  @default(false) @map("feature_editorial")
+  featureEventsStandard       Boolean?  @default(false) @map("feature_events_standard")
+  featureEventsCompetitions   Boolean?  @default(false) @map("feature_events_competitions")
+  featureStay                 Boolean?  @default(false) @map("feature_stay")
+  featureReviews              Boolean?  @default(false) @map("feature_reviews")
+  featureCommunities          Boolean?  @default(false) @map("feature_communities")
+  featureConnections          Boolean?  @default(false) @map("feature_connections")
+  featurePlay                 Boolean?  @default(false) @map("feature_play")
+  featurePlayAddRequest       Boolean?  @default(false) @map("feature_play_add_request")
+  createdAt                   DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  isDefault                   Boolean?  @default(false) @map("is_default")
+  featureSuggestEvent         Boolean?  @default(false) @map("feature_suggest_event")
+  stripePriceId               String? @map("stripe_price_id")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@unique([slug, tenantId])
+  @@map("subscription_plans")
+}
+
+model TeeTimeOfferCriteria {
+  id                Int    @id @default(autoincrement())
+  teeTimeOfferId    Int @map("tee_time_offer_id")
+  fieldId           Int @map("field_id")
+  value             String
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("tee_time_offer_criteria")
+}
+
+model TeeTimeOffers {
+  id               Int       @id @default(autoincrement())
+  userId           String    @db.VarChar(255) @map("user_id")
+  dateTime         DateTime  @db.Timestamp(6) @map("date_time")
+  homeClub         String @map("home_club")
+  pricePerPerson   Int @map("price_per_person")
+  availableSpots   Int @map("available_spots")
+  message          String?
+  status           String?   @default("active")
+  createdAt        DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("tee_time_offers")
+}
+
+model TeeTimeReservations {
+  id                Int       @id @default(autoincrement())
+  teeTimeOfferId    Int @map("tee_time_offer_id")
+  userId            String @map("user_id")
+  spotsRequested    Int       @default(1) @map("spots_requested")
+  status            String?   @default("pending")
+  responseNote      String? @map("response_note")
+  createdAt         DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  guestNames        String[] @map("guest_names")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("tee_time_reservations")
+}
+
+model UserConnections {
+  id           Int       @id @default(autoincrement())
+  requesterId  String    @db.VarChar(255) @map("requester_id")
+  receiverId   String    @db.VarChar(255) @map("receiver_id")
+  status       String    @default("pending")
+  createdAt    DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  updatedAt    DateTime? @default(now()) @db.Timestamp(6) @map("updated_at")
+  message      String?
+
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@unique([requesterId, receiverId])
+  @@map("user_connections")
+}
+
+model UserProfileFieldValues {
+  id       Int    @id @default(autoincrement())
+  userId   String @db.VarChar(255) @map("user_id")
+  fieldId  Int @map("field_id")
+  value    String
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("user_profile_field_values")
+}
+
+model UserProfiles {
+  userId            String    @id @db.VarChar(255) @map("user_id")
+  mumblesVibeName   String @map("mumbles_vibe_name")
+  createdAt         DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("user_profiles")
+}
+
+model Users {
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar
+  email                    String    @unique(map: "users_email_unique") @db.VarChar
+  profileImageUrl          String?   @db.VarChar @map("profile_image_url")
+  createdAt                DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  updatedAt                DateTime? @default(now()) @db.Timestamp(6) @map("updated_at")
+  passwordHash             String?   @db.VarChar @map("password_hash")
+  mumblesVibeName          String    @db.VarChar @map("mumbles_vibe_name")
+  blocked                  Boolean?  @default(false)
+  isAdmin                  Boolean?  @default(false) @map("is_admin")
+  aboutMe                  String? @map("about_me")
+  gender                   String?
+  ageGroup                 String? @map("age_group")
+  profilePictures          Json?     @default("[]") @map("profile_pictures")
+  isProfilePublic          Boolean?  @default(true) @map("is_profile_public")
+  isSuperAdmin             Boolean?  @default(false) @map("is_super_admin")
+  adminArticles            Boolean?  @default(false) @map("admin_articles")
+  adminEvents              Boolean?  @default(false) @map("admin_events")
+  adminReviews             Boolean?  @default(false) @map("admin_reviews")
+  adminPosts               Boolean?  @default(false) @map("admin_posts")
+  adminGroups              Boolean?  @default(false) @map("admin_groups")
+  subscriptionPlanId       String? @map("subscription_plan_id")
+  subscriptionStartDate    DateTime? @db.Timestamp(6) @map("subscription_start_date")
+  subscriptionEndDate      DateTime? @db.Timestamp(6) @map("subscription_end_date")
+  lastActiveAt             DateTime? @db.Timestamp(6) @map("last_active_at")
+  stripeCustomerId         String? @map("stripe_customer_id")
+  stripeSubscriptionId     String? @map("stripe_subscription_id")
+  ssoLinked                Boolean?  @default(false) @map("sso_linked")
+  ssoProvider              String?   @db.VarChar @map("sso_provider")
+  ssoFirstLoginComplete    Boolean?  @default(false) @map("sso_first_login_complete")
+  adminPodcasts            Boolean?  @default(false) @map("admin_podcasts")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("users")
+}
+
+model VibeComments {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  vibeId            String    @db.VarChar(36) @map("vibe_id")
+  userId            String    @db.VarChar(255) @map("user_id")
+  content           String
+  createdAt         DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  parentCommentId   String?   @db.VarChar(36) @map("parent_comment_id")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("vibe_comments")
+}
+
+model VibeReactions {
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  vibeId        String @db.VarChar(36) @map("vibe_id")
+  userId        String @db.VarChar(255) @map("user_id")
+  reactionType  String @map("reaction_type")
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("vibe_reactions")
+}
+
+model Vibes {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar(36)
+  userId     String    @db.VarChar(255) @map("user_id")
+  content    String
+  category   String
+  createdAt  DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  imageUrl   String? @map("image_url")
+  imageUrls  Json?     @default("[]") @db.Json @map("image_urls")
+  vibeType   String    @default("post") @map("vibe_type")
+  updatedAt  DateTime? @db.Timestamp(6) @map("updated_at")
+  edited     Boolean?  @default(false)
+  tenantId     String?   @db.VarChar @map("tenant_id")
+  @@map("vibes")
+}
+
+model Tenants {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar
+  name        String
+  domainName  String?   @map("domain_name")
+  subDomain   String?   @unique @map("sub_domain")
+  createdAt   DateTime? @default(now()) @db.Timestamp(6) @map("created_at")
+  @@map("tenants")
+}

@@ -1,0 +1,61 @@
+modules = ["nodejs-20", "web", "postgresql-16"]
+run = "npm run dev"
+hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
+
+[nix]
+channel = "stable-24_05"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 5001
+externalPort = 3000
+
+[env]
+PORT = "5000"
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["bash", "-c", "node ./dist/index.cjs & PORT=5000 HOSTNAME=0.0.0.0 node .next/standalone/server.js"]
+build = ["npm", "run", "build"]
+publicDir = "public"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "BACKEND_PORT=${BACKEND_PORT:-5001} tsx server/index.ts & PORT=${PORT:-5000} next dev --port ${PORT:-5000} --hostname 0.0.0.0"
+waitForPort = 5000
+
+[userenv]
+
+[userenv.shared]
+RAPIDAPI_KEY = "3c1315a19amshca4a9395e31728cp10b42fjsne8311a804cbf"
+JWT_SECRET = "e14911d965c3a01bfad05b45ac74939dcb0d279c2d16e83908a47f5a9c834c459f4c6df673ea1c717af83bc473bfe17486186791d7516599ae9f2a5f571bc5f8"
+ONBOARDING_API_KEY = "gj-onboard-test-key-2026"
+
+[agent]
+integrations = ["javascript_log_in_with_replit:2.0.0", "javascript_object_storage:2.0.0", "stripe:2.0.0"]
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000

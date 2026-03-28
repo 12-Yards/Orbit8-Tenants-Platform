@@ -1,0 +1,6076 @@
+--
+-- PostgreSQL database dump
+--
+
+\restrict 5R5IOmNlsTmnlkdZA2uJtDmhlur1y5mJsG0ZOFw0w0RCqLZeJcFqO6zNBN08ZVP
+
+-- Dumped from database version 16.10
+-- Dumped by pg_dump version 16.10
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: stripe; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA stripe;
+
+
+--
+-- Name: invoice_status; Type: TYPE; Schema: stripe; Owner: -
+--
+
+CREATE TYPE stripe.invoice_status AS ENUM (
+    'draft',
+    'open',
+    'paid',
+    'uncollectible',
+    'void',
+    'deleted'
+);
+
+
+--
+-- Name: pricing_tiers; Type: TYPE; Schema: stripe; Owner: -
+--
+
+CREATE TYPE stripe.pricing_tiers AS ENUM (
+    'graduated',
+    'volume'
+);
+
+
+--
+-- Name: pricing_type; Type: TYPE; Schema: stripe; Owner: -
+--
+
+CREATE TYPE stripe.pricing_type AS ENUM (
+    'one_time',
+    'recurring'
+);
+
+
+--
+-- Name: subscription_schedule_status; Type: TYPE; Schema: stripe; Owner: -
+--
+
+CREATE TYPE stripe.subscription_schedule_status AS ENUM (
+    'not_started',
+    'active',
+    'completed',
+    'released',
+    'canceled'
+);
+
+
+--
+-- Name: subscription_status; Type: TYPE; Schema: stripe; Owner: -
+--
+
+CREATE TYPE stripe.subscription_status AS ENUM (
+    'trialing',
+    'active',
+    'canceled',
+    'incomplete',
+    'incomplete_expired',
+    'past_due',
+    'unpaid',
+    'paused'
+);
+
+
+--
+-- Name: set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new._updated_at = now();
+  return NEW;
+end;
+$$;
+
+
+--
+-- Name: set_updated_at_metadata(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_updated_at_metadata() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at = now();
+  return NEW;
+end;
+$$;
+
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: accommodations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.accommodations (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    display_address text NOT NULL,
+    thumbnail_url text NOT NULL,
+    nightly_price_from integer NOT NULL,
+    total_price integer,
+    currency text DEFAULT 'GBP'::text,
+    rating real NOT NULL,
+    review_count integer NOT NULL,
+    affiliate_url text NOT NULL,
+    amenities json DEFAULT '[]'::json,
+    stay_type text NOT NULL,
+    neighborhood text NOT NULL,
+    description text NOT NULL,
+    available boolean DEFAULT true,
+    booking_com_id text,
+    latitude real,
+    longitude real
+);
+
+
+--
+-- Name: article_categories; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.article_categories (
+    id integer NOT NULL,
+    name text NOT NULL,
+    icon text DEFAULT 'folder'::text,
+    order_index integer DEFAULT 0,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: article_categories_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.article_categories_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: article_categories_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.article_categories_id_seq OWNED BY public.article_categories.id;
+
+
+--
+-- Name: article_likes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.article_likes (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    article_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL
+);
+
+
+--
+-- Name: article_sections; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.article_sections (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    article_id character varying(36) NOT NULL,
+    order_index integer NOT NULL,
+    section_type text NOT NULL,
+    heading text,
+    content text,
+    media_urls jsonb DEFAULT '[]'::jsonb,
+    media_captions json DEFAULT '[]'::json,
+    mux_playback_id text,
+    mux_asset_id text
+);
+
+
+--
+-- Name: articles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.articles (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    title text NOT NULL,
+    slug text NOT NULL,
+    category text NOT NULL,
+    excerpt text NOT NULL,
+    content text NOT NULL,
+    hero_image_url text NOT NULL,
+    published_at text NOT NULL,
+    author text NOT NULL,
+    reading_time integer NOT NULL,
+    boosted_likes integer DEFAULT 0,
+    image_urls jsonb DEFAULT '[]'::jsonb
+);
+
+
+--
+-- Name: comments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.comments (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    article_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL,
+    content text NOT NULL,
+    created_at timestamp without time zone DEFAULT now(),
+    parent_comment_id character varying(36),
+    updated_at timestamp without time zone,
+    edited boolean DEFAULT false
+);
+
+
+--
+-- Name: competition_brackets; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.competition_brackets (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    event_id character varying(36) NOT NULL,
+    total_rounds integer NOT NULL,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: competition_matches; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.competition_matches (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    round_id character varying(36) NOT NULL,
+    match_number integer NOT NULL,
+    team1_id character varying(36),
+    team2_id character varying(36),
+    winner_id character varying(36),
+    score1 integer,
+    score2 integer,
+    created_at timestamp without time zone DEFAULT now(),
+    result_submitted_by_team_id character varying(36),
+    proposed_winner_id character varying(36),
+    result_submitted_by_user_id character varying(36),
+    result_confirmed_by_user_id character varying(36),
+    result_confirmed_at timestamp without time zone
+);
+
+
+--
+-- Name: competition_rounds; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.competition_rounds (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    bracket_id character varying(36) NOT NULL,
+    round_number integer NOT NULL,
+    round_name text NOT NULL,
+    deadline timestamp without time zone,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: competition_teams; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.competition_teams (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    event_id character varying(36) NOT NULL,
+    team_number integer NOT NULL,
+    player1_entry_id character varying(40),
+    player2_entry_id character varying(40),
+    created_at timestamp without time zone DEFAULT now(),
+    player3_entry_id character varying(40),
+    player4_entry_id character varying(40),
+    player5_entry_id character varying(40),
+    player6_entry_id character varying(40),
+    team_stableford integer,
+    tee_time character varying(10),
+    team_handicap integer
+);
+
+
+--
+-- Name: connection_notifications; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.connection_notifications (
+    id integer NOT NULL,
+    user_id character varying(255) NOT NULL,
+    type text NOT NULL,
+    connection_id integer,
+    is_read boolean DEFAULT false,
+    created_at timestamp without time zone DEFAULT now(),
+    message_id integer,
+    from_user_id character varying(255),
+    event_id character varying(255),
+    team_id character varying(255),
+    match_id character varying(255),
+    metadata text,
+    play_request_id integer
+);
+
+
+--
+-- Name: connection_notifications_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.connection_notifications_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: connection_notifications_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.connection_notifications_id_seq OWNED BY public.connection_notifications.id;
+
+
+--
+-- Name: contact_requests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.contact_requests (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    email text NOT NULL,
+    phone text,
+    message text NOT NULL,
+    type text DEFAULT 'Contact Form'::text NOT NULL,
+    created_at timestamp without time zone DEFAULT now(),
+    is_read boolean DEFAULT false
+);
+
+
+--
+-- Name: event_attendees; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.event_attendees (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    event_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL,
+    created_at timestamp without time zone DEFAULT now(),
+    status character varying(20) DEFAULT 'attending'::character varying NOT NULL,
+    ticket_number integer
+);
+
+
+--
+-- Name: event_categories; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.event_categories (
+    id integer NOT NULL,
+    name text NOT NULL,
+    icon text DEFAULT 'calendar'::text,
+    order_index integer DEFAULT 0,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: event_categories_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.event_categories_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: event_categories_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.event_categories_id_seq OWNED BY public.event_categories.id;
+
+
+--
+-- Name: event_entries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.event_entries (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    event_id character varying(36) NOT NULL,
+    user_id character varying(36) NOT NULL,
+    team_name text,
+    player_names json DEFAULT '[]'::json,
+    entered_at timestamp without time zone DEFAULT now(),
+    payment_status text DEFAULT 'pending'::text,
+    payment_amount text,
+    signup_type text DEFAULT 'team'::text,
+    player_count integer DEFAULT 1,
+    assigned_player_ids jsonb DEFAULT '[]'::jsonb,
+    score integer,
+    player_scores json DEFAULT '{}'::json,
+    stripe_payment_id text,
+    player_handicaps json DEFAULT '{}'::json
+);
+
+
+--
+-- Name: event_suggestions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.event_suggestions (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    user_id character varying(255) NOT NULL,
+    name text NOT NULL,
+    start_date text NOT NULL,
+    end_date text,
+    venue_name text NOT NULL,
+    address text NOT NULL,
+    summary text NOT NULL,
+    description text NOT NULL,
+    image_url text,
+    tags json DEFAULT '[]'::json,
+    ticket_url text,
+    status text DEFAULT 'pending'::text NOT NULL,
+    created_at timestamp without time zone DEFAULT now(),
+    reviewed_at timestamp without time zone,
+    reviewed_by character varying(255),
+    rejection_reason text,
+    group_event_id character varying(36),
+    approved_event_id character varying(36)
+);
+
+
+--
+-- Name: events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.events (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    start_date text NOT NULL,
+    end_date text,
+    venue_name text NOT NULL,
+    address text NOT NULL,
+    summary text NOT NULL,
+    description text NOT NULL,
+    image_url text NOT NULL,
+    tags json DEFAULT '[]'::json,
+    ticket_url text,
+    is_featured boolean DEFAULT false,
+    slug text NOT NULL,
+    is_event_group boolean DEFAULT false,
+    linked_group_id character varying(36),
+    is_carousel boolean DEFAULT false,
+    event_type text DEFAULT 'standard'::text,
+    max_entries integer,
+    team_size integer,
+    entry_fee text,
+    signup_deadline text,
+    competition_format text,
+    allow_individual_stableford boolean DEFAULT false,
+    stripe_product_id text,
+    stripe_price_id text,
+    league_table_sort_order text DEFAULT 'highest_first'::text,
+    allow_team_handicap boolean DEFAULT false,
+    admin_last_seen_entrant_count integer DEFAULT 0
+);
+
+
+--
+-- Name: group_event_comments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.group_event_comments (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    event_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL,
+    parent_comment_id character varying(36),
+    content text NOT NULL,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: group_event_reactions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.group_event_reactions (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    event_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL,
+    reaction_type text NOT NULL
+);
+
+
+--
+-- Name: group_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.group_events (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    group_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL,
+    name text NOT NULL,
+    start_date text NOT NULL,
+    end_date text,
+    venue_name text NOT NULL,
+    address text NOT NULL,
+    summary text NOT NULL,
+    description text NOT NULL,
+    image_url text,
+    tags json DEFAULT '[]'::json,
+    ticket_url text,
+    show_on_public boolean DEFAULT false,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: group_memberships; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.group_memberships (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    group_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL,
+    role text DEFAULT 'member'::text NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    requested_at timestamp without time zone DEFAULT now(),
+    approved_at timestamp without time zone,
+    approved_by character varying(255)
+);
+
+
+--
+-- Name: group_post_comments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.group_post_comments (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    post_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL,
+    parent_comment_id character varying(36),
+    content text NOT NULL,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: group_post_reactions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.group_post_reactions (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    post_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL,
+    reaction_type text NOT NULL
+);
+
+
+--
+-- Name: group_posts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.group_posts (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    group_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL,
+    content text NOT NULL,
+    image_urls json DEFAULT '[]'::json,
+    created_at timestamp without time zone DEFAULT now(),
+    updated_at timestamp without time zone,
+    edited boolean DEFAULT false,
+    category text DEFAULT 'Social'::text NOT NULL,
+    post_type text DEFAULT 'post'::text NOT NULL
+);
+
+
+--
+-- Name: groups; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.groups (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    slug text NOT NULL,
+    description text NOT NULL,
+    image_url text,
+    created_by character varying(255) NOT NULL,
+    created_at timestamp without time zone DEFAULT now(),
+    is_active boolean DEFAULT true,
+    is_public boolean DEFAULT false,
+    event_id character varying(36)
+);
+
+
+--
+-- Name: hero_settings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.hero_settings (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    title text NOT NULL,
+    subtitle text NOT NULL,
+    image_url text NOT NULL,
+    cta_text text,
+    cta_link text
+);
+
+
+--
+-- Name: insider_tips; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.insider_tips (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    title text NOT NULL,
+    tip text NOT NULL,
+    author text NOT NULL,
+    is_active boolean DEFAULT true
+);
+
+
+--
+-- Name: member_reviews; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.member_reviews (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    user_id character varying(255) NOT NULL,
+    category text NOT NULL,
+    place_name text NOT NULL,
+    title text NOT NULL,
+    summary text NOT NULL,
+    liked text NOT NULL,
+    disliked text NOT NULL,
+    rating integer NOT NULL,
+    image_url text,
+    status text DEFAULT 'pending'::text NOT NULL,
+    created_at timestamp without time zone DEFAULT now(),
+    reviewed_at timestamp without time zone,
+    reviewed_by character varying(255),
+    slug text NOT NULL
+);
+
+
+--
+-- Name: messages; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.messages (
+    id integer NOT NULL,
+    sender_id character varying(255) NOT NULL,
+    receiver_id character varying(255) NOT NULL,
+    content text NOT NULL,
+    is_read boolean DEFAULT false,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: messages_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.messages_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: messages_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.messages_id_seq OWNED BY public.messages.id;
+
+
+--
+-- Name: newsletter_subscriptions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.newsletter_subscriptions (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    email text NOT NULL,
+    subscribed_at text NOT NULL
+);
+
+
+--
+-- Name: play_request_criteria; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.play_request_criteria (
+    id integer NOT NULL,
+    play_request_id integer NOT NULL,
+    field_id integer NOT NULL,
+    value text NOT NULL
+);
+
+
+--
+-- Name: play_request_criteria_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.play_request_criteria_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: play_request_criteria_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.play_request_criteria_id_seq OWNED BY public.play_request_criteria.id;
+
+
+--
+-- Name: play_request_offer_criteria; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.play_request_offer_criteria (
+    id integer NOT NULL,
+    play_request_offer_id integer NOT NULL,
+    field_id integer NOT NULL,
+    field_label text NOT NULL,
+    value text NOT NULL
+);
+
+
+--
+-- Name: play_request_offer_criteria_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.play_request_offer_criteria_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: play_request_offer_criteria_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.play_request_offer_criteria_id_seq OWNED BY public.play_request_offer_criteria.id;
+
+
+--
+-- Name: play_request_offers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.play_request_offers (
+    id integer NOT NULL,
+    play_request_id integer NOT NULL,
+    user_id text NOT NULL,
+    note text,
+    status text DEFAULT 'pending'::text,
+    created_at timestamp without time zone DEFAULT now(),
+    response_note text,
+    club_name text
+);
+
+
+--
+-- Name: play_request_offers_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.play_request_offers_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: play_request_offers_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.play_request_offers_id_seq OWNED BY public.play_request_offers.id;
+
+
+--
+-- Name: play_requests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.play_requests (
+    id integer NOT NULL,
+    user_id character varying(255) NOT NULL,
+    guests text[] DEFAULT '{}'::text[],
+    start_date timestamp without time zone NOT NULL,
+    start_time text,
+    end_date timestamp without time zone,
+    end_time text,
+    message text,
+    status text DEFAULT 'active'::text,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: play_requests_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.play_requests_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: play_requests_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.play_requests_id_seq OWNED BY public.play_requests.id;
+
+
+--
+-- Name: podcast_comments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.podcast_comments (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    podcast_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL,
+    parent_comment_id character varying(36),
+    content text NOT NULL,
+    created_at timestamp without time zone DEFAULT now(),
+    updated_at timestamp without time zone,
+    edited boolean DEFAULT false
+);
+
+
+--
+-- Name: podcast_likes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.podcast_likes (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    podcast_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL
+);
+
+
+--
+-- Name: podcasts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.podcasts (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    title text NOT NULL,
+    slug text NOT NULL,
+    excerpt text NOT NULL,
+    content text NOT NULL,
+    hero_image_url text,
+    media_url text,
+    media_type text DEFAULT 'link'::text,
+    author text NOT NULL,
+    published_at text NOT NULL,
+    is_active boolean DEFAULT true,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: poll_votes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.poll_votes (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    poll_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL,
+    option_index integer NOT NULL,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: polls; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.polls (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    title text NOT NULL,
+    image_url text NOT NULL,
+    options jsonb NOT NULL,
+    start_date timestamp without time zone NOT NULL,
+    duration_hours integer NOT NULL,
+    created_at timestamp without time zone DEFAULT now(),
+    is_active boolean DEFAULT true,
+    slug text NOT NULL,
+    option_images json DEFAULT '[]'::json,
+    article text,
+    boosted_votes integer DEFAULT 0,
+    poll_type text DEFAULT 'standard'::text NOT NULL
+);
+
+
+--
+-- Name: profile_field_definitions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.profile_field_definitions (
+    id integer NOT NULL,
+    label text NOT NULL,
+    slug text NOT NULL,
+    field_type text DEFAULT 'text'::text NOT NULL,
+    description text,
+    is_required boolean DEFAULT false,
+    order_index integer DEFAULT 0,
+    created_at timestamp without time zone DEFAULT now(),
+    use_on_play_requests boolean DEFAULT true,
+    use_on_tee_times boolean DEFAULT true,
+    use_on_play_request_offers boolean DEFAULT true
+);
+
+
+--
+-- Name: profile_field_definitions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.profile_field_definitions_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: profile_field_definitions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.profile_field_definitions_id_seq OWNED BY public.profile_field_definitions.id;
+
+
+--
+-- Name: profile_field_options; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.profile_field_options (
+    id integer NOT NULL,
+    field_id integer NOT NULL,
+    label text NOT NULL,
+    value text NOT NULL,
+    order_index integer DEFAULT 0
+);
+
+
+--
+-- Name: profile_field_options_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.profile_field_options_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: profile_field_options_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.profile_field_options_id_seq OWNED BY public.profile_field_options.id;
+
+
+--
+-- Name: profile_field_selector_values; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.profile_field_selector_values (
+    id integer NOT NULL,
+    field_id integer NOT NULL,
+    value text NOT NULL,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: profile_field_selector_values_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.profile_field_selector_values_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: profile_field_selector_values_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.profile_field_selector_values_id_seq OWNED BY public.profile_field_selector_values.id;
+
+
+--
+-- Name: profile_pictures; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.profile_pictures (
+    id integer NOT NULL,
+    user_id character varying(255) NOT NULL,
+    image_url text NOT NULL,
+    caption text,
+    order_index integer DEFAULT 0,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: profile_pictures_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.profile_pictures_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: profile_pictures_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.profile_pictures_id_seq OWNED BY public.profile_pictures.id;
+
+
+--
+-- Name: ranking_votes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ranking_votes (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    poll_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL,
+    ranking json NOT NULL,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: review_categories; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.review_categories (
+    id integer NOT NULL,
+    name text NOT NULL,
+    icon text DEFAULT 'folder'::text,
+    order_index integer DEFAULT 0,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: review_categories_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.review_categories_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: review_categories_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.review_categories_id_seq OWNED BY public.review_categories.id;
+
+
+--
+-- Name: review_comments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.review_comments (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    review_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL,
+    parent_comment_id character varying(36),
+    content text NOT NULL,
+    created_at timestamp without time zone DEFAULT now(),
+    updated_at timestamp without time zone,
+    edited boolean DEFAULT false
+);
+
+
+--
+-- Name: review_likes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.review_likes (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    review_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL
+);
+
+
+--
+-- Name: sessions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sessions (
+    sid character varying NOT NULL,
+    sess jsonb NOT NULL,
+    expire timestamp without time zone NOT NULL
+);
+
+
+--
+-- Name: site_settings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.site_settings (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    show_stay boolean DEFAULT true,
+    show_events boolean DEFAULT true,
+    show_reviews boolean DEFAULT true,
+    show_community boolean DEFAULT true,
+    updated_at timestamp without time zone DEFAULT now(),
+    show_ecommerce boolean DEFAULT false,
+    platform_name text DEFAULT 'Mumbles Vibe'::text,
+    twitter_url text,
+    instagram_url text,
+    tagline text DEFAULT 'Your community guide to the beautiful seaside village of Mumbles, Swansea. Discover local gems, upcoming events, and find the perfect place to stay.'::text,
+    logo_url text,
+    terms_of_service text,
+    privacy_policy text,
+    favicon_url text,
+    use_default_terms boolean DEFAULT false,
+    use_default_privacy boolean DEFAULT false,
+    show_connections boolean DEFAULT true,
+    cta_heading text DEFAULT 'Got something to say?'::text,
+    cta_description text DEFAULT 'Have a recommendation or need one? Share with the community.'::text,
+    cta_button_text text DEFAULT 'Join the Conversation'::text,
+    show_where_to_stay boolean DEFAULT true,
+    youtube_url text,
+    linkedin_url text,
+    tiktok_url text,
+    snapchat_url text,
+    show_play boolean DEFAULT true,
+    currency text DEFAULT '$'::text,
+    show_podcasts boolean DEFAULT false,
+    platform_live boolean DEFAULT false,
+    fill_competition_allowed boolean DEFAULT true
+);
+
+
+--
+-- Name: subscription_plans; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.subscription_plans (
+    id integer NOT NULL,
+    name text NOT NULL,
+    slug text NOT NULL,
+    description text,
+    price real DEFAULT 0 NOT NULL,
+    billing_period text DEFAULT 'monthly'::text,
+    is_active boolean DEFAULT true,
+    order_index integer DEFAULT 0,
+    feature_editorial boolean DEFAULT false,
+    feature_events_standard boolean DEFAULT false,
+    feature_events_competitions boolean DEFAULT false,
+    feature_stay boolean DEFAULT false,
+    feature_reviews boolean DEFAULT false,
+    feature_communities boolean DEFAULT false,
+    feature_connections boolean DEFAULT false,
+    feature_play boolean DEFAULT false,
+    feature_play_add_request boolean DEFAULT false,
+    created_at timestamp without time zone DEFAULT now(),
+    is_default boolean DEFAULT false,
+    feature_suggest_event boolean DEFAULT false,
+    stripe_price_id text
+);
+
+
+--
+-- Name: subscription_plans_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.subscription_plans_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: subscription_plans_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.subscription_plans_id_seq OWNED BY public.subscription_plans.id;
+
+
+--
+-- Name: tee_time_offer_criteria; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tee_time_offer_criteria (
+    id integer NOT NULL,
+    tee_time_offer_id integer NOT NULL,
+    field_id integer NOT NULL,
+    value text NOT NULL
+);
+
+
+--
+-- Name: tee_time_offer_criteria_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.tee_time_offer_criteria_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: tee_time_offer_criteria_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.tee_time_offer_criteria_id_seq OWNED BY public.tee_time_offer_criteria.id;
+
+
+--
+-- Name: tee_time_offers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tee_time_offers (
+    id integer NOT NULL,
+    user_id character varying(255) NOT NULL,
+    date_time timestamp without time zone NOT NULL,
+    home_club text NOT NULL,
+    price_per_person integer NOT NULL,
+    available_spots integer NOT NULL,
+    message text,
+    status text DEFAULT 'active'::text,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: tee_time_offers_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.tee_time_offers_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: tee_time_offers_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.tee_time_offers_id_seq OWNED BY public.tee_time_offers.id;
+
+
+--
+-- Name: tee_time_reservations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tee_time_reservations (
+    id integer NOT NULL,
+    tee_time_offer_id integer NOT NULL,
+    user_id text NOT NULL,
+    spots_requested integer DEFAULT 1 NOT NULL,
+    status text DEFAULT 'pending'::text,
+    response_note text,
+    created_at timestamp without time zone DEFAULT now(),
+    guest_names text[]
+);
+
+
+--
+-- Name: tee_time_reservations_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.tee_time_reservations_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: tee_time_reservations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.tee_time_reservations_id_seq OWNED BY public.tee_time_reservations.id;
+
+
+--
+-- Name: user_connections; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_connections (
+    id integer NOT NULL,
+    requester_id character varying(255) NOT NULL,
+    receiver_id character varying(255) NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    created_at timestamp without time zone DEFAULT now(),
+    updated_at timestamp without time zone DEFAULT now(),
+    message text
+);
+
+
+--
+-- Name: user_connections_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.user_connections_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: user_connections_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.user_connections_id_seq OWNED BY public.user_connections.id;
+
+
+--
+-- Name: user_profile_field_values; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_profile_field_values (
+    id integer NOT NULL,
+    user_id character varying(255) NOT NULL,
+    field_id integer NOT NULL,
+    value text NOT NULL
+);
+
+
+--
+-- Name: user_profile_field_values_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.user_profile_field_values_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: user_profile_field_values_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.user_profile_field_values_id_seq OWNED BY public.user_profile_field_values.id;
+
+
+--
+-- Name: user_profiles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_profiles (
+    user_id character varying(255) NOT NULL,
+    mumbles_vibe_name text NOT NULL,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: users; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.users (
+    id character varying DEFAULT gen_random_uuid() NOT NULL,
+    email character varying NOT NULL,
+    profile_image_url character varying,
+    created_at timestamp without time zone DEFAULT now(),
+    updated_at timestamp without time zone DEFAULT now(),
+    password_hash character varying,
+    mumbles_vibe_name character varying NOT NULL,
+    blocked boolean DEFAULT false,
+    is_admin boolean DEFAULT false,
+    about_me text,
+    gender text,
+    age_group text,
+    profile_pictures jsonb DEFAULT '[]'::jsonb,
+    is_profile_public boolean DEFAULT true,
+    is_super_admin boolean DEFAULT false,
+    admin_articles boolean DEFAULT false,
+    admin_events boolean DEFAULT false,
+    admin_reviews boolean DEFAULT false,
+    admin_posts boolean DEFAULT false,
+    admin_groups boolean DEFAULT false,
+    subscription_plan_id text,
+    subscription_start_date timestamp without time zone,
+    subscription_end_date timestamp without time zone,
+    last_active_at timestamp without time zone,
+    stripe_customer_id text,
+    stripe_subscription_id text,
+    sso_linked boolean DEFAULT false,
+    sso_provider character varying,
+    sso_first_login_complete boolean DEFAULT false,
+    admin_podcasts boolean DEFAULT false
+);
+
+
+--
+-- Name: vibe_comments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.vibe_comments (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    vibe_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL,
+    content text NOT NULL,
+    created_at timestamp without time zone DEFAULT now(),
+    parent_comment_id character varying(36)
+);
+
+
+--
+-- Name: vibe_reactions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.vibe_reactions (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    vibe_id character varying(36) NOT NULL,
+    user_id character varying(255) NOT NULL,
+    reaction_type text NOT NULL
+);
+
+
+--
+-- Name: vibes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.vibes (
+    id character varying(36) DEFAULT gen_random_uuid() NOT NULL,
+    user_id character varying(255) NOT NULL,
+    content text NOT NULL,
+    category text NOT NULL,
+    created_at timestamp without time zone DEFAULT now(),
+    image_url text,
+    image_urls json DEFAULT '[]'::json,
+    vibe_type text DEFAULT 'post'::text NOT NULL,
+    updated_at timestamp without time zone,
+    edited boolean DEFAULT false
+);
+
+
+--
+-- Name: _managed_webhooks; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe._managed_webhooks (
+    id text NOT NULL,
+    object text,
+    url text NOT NULL,
+    enabled_events jsonb NOT NULL,
+    description text,
+    enabled boolean,
+    livemode boolean,
+    metadata jsonb,
+    secret text NOT NULL,
+    status text,
+    api_version text,
+    created integer,
+    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    last_synced_at timestamp with time zone,
+    account_id text NOT NULL
+);
+
+
+--
+-- Name: _migrations; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe._migrations (
+    id integer NOT NULL,
+    name character varying(100) NOT NULL,
+    hash character varying(40) NOT NULL,
+    executed_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--
+-- Name: _sync_status; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe._sync_status (
+    id integer NOT NULL,
+    resource text NOT NULL,
+    status text DEFAULT 'idle'::text,
+    last_synced_at timestamp with time zone DEFAULT now(),
+    last_incremental_cursor timestamp with time zone,
+    error_message text,
+    updated_at timestamp with time zone DEFAULT now(),
+    account_id text NOT NULL,
+    CONSTRAINT _sync_status_status_check CHECK ((status = ANY (ARRAY['idle'::text, 'running'::text, 'complete'::text, 'error'::text])))
+);
+
+
+--
+-- Name: _sync_status_id_seq; Type: SEQUENCE; Schema: stripe; Owner: -
+--
+
+CREATE SEQUENCE stripe._sync_status_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: _sync_status_id_seq; Type: SEQUENCE OWNED BY; Schema: stripe; Owner: -
+--
+
+ALTER SEQUENCE stripe._sync_status_id_seq OWNED BY stripe._sync_status.id;
+
+
+--
+-- Name: accounts; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.accounts (
+    _raw_data jsonb NOT NULL,
+    first_synced_at timestamp with time zone DEFAULT now() NOT NULL,
+    _last_synced_at timestamp with time zone DEFAULT now() NOT NULL,
+    _updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    business_name text GENERATED ALWAYS AS (((_raw_data -> 'business_profile'::text) ->> 'name'::text)) STORED,
+    email text GENERATED ALWAYS AS ((_raw_data ->> 'email'::text)) STORED,
+    type text GENERATED ALWAYS AS ((_raw_data ->> 'type'::text)) STORED,
+    charges_enabled boolean GENERATED ALWAYS AS (((_raw_data ->> 'charges_enabled'::text))::boolean) STORED,
+    payouts_enabled boolean GENERATED ALWAYS AS (((_raw_data ->> 'payouts_enabled'::text))::boolean) STORED,
+    details_submitted boolean GENERATED ALWAYS AS (((_raw_data ->> 'details_submitted'::text))::boolean) STORED,
+    country text GENERATED ALWAYS AS ((_raw_data ->> 'country'::text)) STORED,
+    default_currency text GENERATED ALWAYS AS ((_raw_data ->> 'default_currency'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    api_key_hashes text[] DEFAULT '{}'::text[],
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: active_entitlements; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.active_entitlements (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    feature text GENERATED ALWAYS AS ((_raw_data ->> 'feature'::text)) STORED,
+    customer text GENERATED ALWAYS AS ((_raw_data ->> 'customer'::text)) STORED,
+    lookup_key text GENERATED ALWAYS AS ((_raw_data ->> 'lookup_key'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: charges; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.charges (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    paid boolean GENERATED ALWAYS AS (((_raw_data ->> 'paid'::text))::boolean) STORED,
+    "order" text GENERATED ALWAYS AS ((_raw_data ->> 'order'::text)) STORED,
+    amount bigint GENERATED ALWAYS AS (((_raw_data ->> 'amount'::text))::bigint) STORED,
+    review text GENERATED ALWAYS AS ((_raw_data ->> 'review'::text)) STORED,
+    source jsonb GENERATED ALWAYS AS ((_raw_data -> 'source'::text)) STORED,
+    status text GENERATED ALWAYS AS ((_raw_data ->> 'status'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    dispute text GENERATED ALWAYS AS ((_raw_data ->> 'dispute'::text)) STORED,
+    invoice text GENERATED ALWAYS AS ((_raw_data ->> 'invoice'::text)) STORED,
+    outcome jsonb GENERATED ALWAYS AS ((_raw_data -> 'outcome'::text)) STORED,
+    refunds jsonb GENERATED ALWAYS AS ((_raw_data -> 'refunds'::text)) STORED,
+    updated integer GENERATED ALWAYS AS (((_raw_data ->> 'updated'::text))::integer) STORED,
+    captured boolean GENERATED ALWAYS AS (((_raw_data ->> 'captured'::text))::boolean) STORED,
+    currency text GENERATED ALWAYS AS ((_raw_data ->> 'currency'::text)) STORED,
+    customer text GENERATED ALWAYS AS ((_raw_data ->> 'customer'::text)) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    refunded boolean GENERATED ALWAYS AS (((_raw_data ->> 'refunded'::text))::boolean) STORED,
+    shipping jsonb GENERATED ALWAYS AS ((_raw_data -> 'shipping'::text)) STORED,
+    application text GENERATED ALWAYS AS ((_raw_data ->> 'application'::text)) STORED,
+    description text GENERATED ALWAYS AS ((_raw_data ->> 'description'::text)) STORED,
+    destination text GENERATED ALWAYS AS ((_raw_data ->> 'destination'::text)) STORED,
+    failure_code text GENERATED ALWAYS AS ((_raw_data ->> 'failure_code'::text)) STORED,
+    on_behalf_of text GENERATED ALWAYS AS ((_raw_data ->> 'on_behalf_of'::text)) STORED,
+    fraud_details jsonb GENERATED ALWAYS AS ((_raw_data -> 'fraud_details'::text)) STORED,
+    receipt_email text GENERATED ALWAYS AS ((_raw_data ->> 'receipt_email'::text)) STORED,
+    payment_intent text GENERATED ALWAYS AS ((_raw_data ->> 'payment_intent'::text)) STORED,
+    receipt_number text GENERATED ALWAYS AS ((_raw_data ->> 'receipt_number'::text)) STORED,
+    transfer_group text GENERATED ALWAYS AS ((_raw_data ->> 'transfer_group'::text)) STORED,
+    amount_refunded bigint GENERATED ALWAYS AS (((_raw_data ->> 'amount_refunded'::text))::bigint) STORED,
+    application_fee text GENERATED ALWAYS AS ((_raw_data ->> 'application_fee'::text)) STORED,
+    failure_message text GENERATED ALWAYS AS ((_raw_data ->> 'failure_message'::text)) STORED,
+    source_transfer text GENERATED ALWAYS AS ((_raw_data ->> 'source_transfer'::text)) STORED,
+    balance_transaction text GENERATED ALWAYS AS ((_raw_data ->> 'balance_transaction'::text)) STORED,
+    statement_descriptor text GENERATED ALWAYS AS ((_raw_data ->> 'statement_descriptor'::text)) STORED,
+    payment_method_details jsonb GENERATED ALWAYS AS ((_raw_data -> 'payment_method_details'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: checkout_session_line_items; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.checkout_session_line_items (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    amount_discount integer GENERATED ALWAYS AS (((_raw_data ->> 'amount_discount'::text))::integer) STORED,
+    amount_subtotal integer GENERATED ALWAYS AS (((_raw_data ->> 'amount_subtotal'::text))::integer) STORED,
+    amount_tax integer GENERATED ALWAYS AS (((_raw_data ->> 'amount_tax'::text))::integer) STORED,
+    amount_total integer GENERATED ALWAYS AS (((_raw_data ->> 'amount_total'::text))::integer) STORED,
+    currency text GENERATED ALWAYS AS ((_raw_data ->> 'currency'::text)) STORED,
+    description text GENERATED ALWAYS AS ((_raw_data ->> 'description'::text)) STORED,
+    price text GENERATED ALWAYS AS ((_raw_data ->> 'price'::text)) STORED,
+    quantity integer GENERATED ALWAYS AS (((_raw_data ->> 'quantity'::text))::integer) STORED,
+    checkout_session text GENERATED ALWAYS AS ((_raw_data ->> 'checkout_session'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: checkout_sessions; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.checkout_sessions (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    adaptive_pricing jsonb GENERATED ALWAYS AS ((_raw_data -> 'adaptive_pricing'::text)) STORED,
+    after_expiration jsonb GENERATED ALWAYS AS ((_raw_data -> 'after_expiration'::text)) STORED,
+    allow_promotion_codes boolean GENERATED ALWAYS AS (((_raw_data ->> 'allow_promotion_codes'::text))::boolean) STORED,
+    amount_subtotal integer GENERATED ALWAYS AS (((_raw_data ->> 'amount_subtotal'::text))::integer) STORED,
+    amount_total integer GENERATED ALWAYS AS (((_raw_data ->> 'amount_total'::text))::integer) STORED,
+    automatic_tax jsonb GENERATED ALWAYS AS ((_raw_data -> 'automatic_tax'::text)) STORED,
+    billing_address_collection text GENERATED ALWAYS AS ((_raw_data ->> 'billing_address_collection'::text)) STORED,
+    cancel_url text GENERATED ALWAYS AS ((_raw_data ->> 'cancel_url'::text)) STORED,
+    client_reference_id text GENERATED ALWAYS AS ((_raw_data ->> 'client_reference_id'::text)) STORED,
+    client_secret text GENERATED ALWAYS AS ((_raw_data ->> 'client_secret'::text)) STORED,
+    collected_information jsonb GENERATED ALWAYS AS ((_raw_data -> 'collected_information'::text)) STORED,
+    consent jsonb GENERATED ALWAYS AS ((_raw_data -> 'consent'::text)) STORED,
+    consent_collection jsonb GENERATED ALWAYS AS ((_raw_data -> 'consent_collection'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    currency text GENERATED ALWAYS AS ((_raw_data ->> 'currency'::text)) STORED,
+    currency_conversion jsonb GENERATED ALWAYS AS ((_raw_data -> 'currency_conversion'::text)) STORED,
+    custom_fields jsonb GENERATED ALWAYS AS ((_raw_data -> 'custom_fields'::text)) STORED,
+    custom_text jsonb GENERATED ALWAYS AS ((_raw_data -> 'custom_text'::text)) STORED,
+    customer text GENERATED ALWAYS AS ((_raw_data ->> 'customer'::text)) STORED,
+    customer_creation text GENERATED ALWAYS AS ((_raw_data ->> 'customer_creation'::text)) STORED,
+    customer_details jsonb GENERATED ALWAYS AS ((_raw_data -> 'customer_details'::text)) STORED,
+    customer_email text GENERATED ALWAYS AS ((_raw_data ->> 'customer_email'::text)) STORED,
+    discounts jsonb GENERATED ALWAYS AS ((_raw_data -> 'discounts'::text)) STORED,
+    expires_at integer GENERATED ALWAYS AS (((_raw_data ->> 'expires_at'::text))::integer) STORED,
+    invoice text GENERATED ALWAYS AS ((_raw_data ->> 'invoice'::text)) STORED,
+    invoice_creation jsonb GENERATED ALWAYS AS ((_raw_data -> 'invoice_creation'::text)) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    locale text GENERATED ALWAYS AS ((_raw_data ->> 'locale'::text)) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    mode text GENERATED ALWAYS AS ((_raw_data ->> 'mode'::text)) STORED,
+    optional_items jsonb GENERATED ALWAYS AS ((_raw_data -> 'optional_items'::text)) STORED,
+    payment_intent text GENERATED ALWAYS AS ((_raw_data ->> 'payment_intent'::text)) STORED,
+    payment_link text GENERATED ALWAYS AS ((_raw_data ->> 'payment_link'::text)) STORED,
+    payment_method_collection text GENERATED ALWAYS AS ((_raw_data ->> 'payment_method_collection'::text)) STORED,
+    payment_method_configuration_details jsonb GENERATED ALWAYS AS ((_raw_data -> 'payment_method_configuration_details'::text)) STORED,
+    payment_method_options jsonb GENERATED ALWAYS AS ((_raw_data -> 'payment_method_options'::text)) STORED,
+    payment_method_types jsonb GENERATED ALWAYS AS ((_raw_data -> 'payment_method_types'::text)) STORED,
+    payment_status text GENERATED ALWAYS AS ((_raw_data ->> 'payment_status'::text)) STORED,
+    permissions jsonb GENERATED ALWAYS AS ((_raw_data -> 'permissions'::text)) STORED,
+    phone_number_collection jsonb GENERATED ALWAYS AS ((_raw_data -> 'phone_number_collection'::text)) STORED,
+    presentment_details jsonb GENERATED ALWAYS AS ((_raw_data -> 'presentment_details'::text)) STORED,
+    recovered_from text GENERATED ALWAYS AS ((_raw_data ->> 'recovered_from'::text)) STORED,
+    redirect_on_completion text GENERATED ALWAYS AS ((_raw_data ->> 'redirect_on_completion'::text)) STORED,
+    return_url text GENERATED ALWAYS AS ((_raw_data ->> 'return_url'::text)) STORED,
+    saved_payment_method_options jsonb GENERATED ALWAYS AS ((_raw_data -> 'saved_payment_method_options'::text)) STORED,
+    setup_intent text GENERATED ALWAYS AS ((_raw_data ->> 'setup_intent'::text)) STORED,
+    shipping_address_collection jsonb GENERATED ALWAYS AS ((_raw_data -> 'shipping_address_collection'::text)) STORED,
+    shipping_cost jsonb GENERATED ALWAYS AS ((_raw_data -> 'shipping_cost'::text)) STORED,
+    shipping_details jsonb GENERATED ALWAYS AS ((_raw_data -> 'shipping_details'::text)) STORED,
+    shipping_options jsonb GENERATED ALWAYS AS ((_raw_data -> 'shipping_options'::text)) STORED,
+    status text GENERATED ALWAYS AS ((_raw_data ->> 'status'::text)) STORED,
+    submit_type text GENERATED ALWAYS AS ((_raw_data ->> 'submit_type'::text)) STORED,
+    subscription text GENERATED ALWAYS AS ((_raw_data ->> 'subscription'::text)) STORED,
+    success_url text GENERATED ALWAYS AS ((_raw_data ->> 'success_url'::text)) STORED,
+    tax_id_collection jsonb GENERATED ALWAYS AS ((_raw_data -> 'tax_id_collection'::text)) STORED,
+    total_details jsonb GENERATED ALWAYS AS ((_raw_data -> 'total_details'::text)) STORED,
+    ui_mode text GENERATED ALWAYS AS ((_raw_data ->> 'ui_mode'::text)) STORED,
+    url text GENERATED ALWAYS AS ((_raw_data ->> 'url'::text)) STORED,
+    wallet_options jsonb GENERATED ALWAYS AS ((_raw_data -> 'wallet_options'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: coupons; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.coupons (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    name text GENERATED ALWAYS AS ((_raw_data ->> 'name'::text)) STORED,
+    valid boolean GENERATED ALWAYS AS (((_raw_data ->> 'valid'::text))::boolean) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    updated integer GENERATED ALWAYS AS (((_raw_data ->> 'updated'::text))::integer) STORED,
+    currency text GENERATED ALWAYS AS ((_raw_data ->> 'currency'::text)) STORED,
+    duration text GENERATED ALWAYS AS ((_raw_data ->> 'duration'::text)) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    redeem_by integer GENERATED ALWAYS AS (((_raw_data ->> 'redeem_by'::text))::integer) STORED,
+    amount_off bigint GENERATED ALWAYS AS (((_raw_data ->> 'amount_off'::text))::bigint) STORED,
+    percent_off double precision GENERATED ALWAYS AS (((_raw_data ->> 'percent_off'::text))::double precision) STORED,
+    times_redeemed bigint GENERATED ALWAYS AS (((_raw_data ->> 'times_redeemed'::text))::bigint) STORED,
+    max_redemptions bigint GENERATED ALWAYS AS (((_raw_data ->> 'max_redemptions'::text))::bigint) STORED,
+    duration_in_months bigint GENERATED ALWAYS AS (((_raw_data ->> 'duration_in_months'::text))::bigint) STORED,
+    percent_off_precise double precision GENERATED ALWAYS AS (((_raw_data ->> 'percent_off_precise'::text))::double precision) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: credit_notes; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.credit_notes (
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    amount integer GENERATED ALWAYS AS (((_raw_data ->> 'amount'::text))::integer) STORED,
+    amount_shipping integer GENERATED ALWAYS AS (((_raw_data ->> 'amount_shipping'::text))::integer) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    currency text GENERATED ALWAYS AS ((_raw_data ->> 'currency'::text)) STORED,
+    customer text GENERATED ALWAYS AS ((_raw_data ->> 'customer'::text)) STORED,
+    customer_balance_transaction text GENERATED ALWAYS AS ((_raw_data ->> 'customer_balance_transaction'::text)) STORED,
+    discount_amount integer GENERATED ALWAYS AS (((_raw_data ->> 'discount_amount'::text))::integer) STORED,
+    discount_amounts jsonb GENERATED ALWAYS AS ((_raw_data -> 'discount_amounts'::text)) STORED,
+    invoice text GENERATED ALWAYS AS ((_raw_data ->> 'invoice'::text)) STORED,
+    lines jsonb GENERATED ALWAYS AS ((_raw_data -> 'lines'::text)) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    memo text GENERATED ALWAYS AS ((_raw_data ->> 'memo'::text)) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    number text GENERATED ALWAYS AS ((_raw_data ->> 'number'::text)) STORED,
+    out_of_band_amount integer GENERATED ALWAYS AS (((_raw_data ->> 'out_of_band_amount'::text))::integer) STORED,
+    pdf text GENERATED ALWAYS AS ((_raw_data ->> 'pdf'::text)) STORED,
+    reason text GENERATED ALWAYS AS ((_raw_data ->> 'reason'::text)) STORED,
+    refund text GENERATED ALWAYS AS ((_raw_data ->> 'refund'::text)) STORED,
+    shipping_cost jsonb GENERATED ALWAYS AS ((_raw_data -> 'shipping_cost'::text)) STORED,
+    status text GENERATED ALWAYS AS ((_raw_data ->> 'status'::text)) STORED,
+    subtotal integer GENERATED ALWAYS AS (((_raw_data ->> 'subtotal'::text))::integer) STORED,
+    subtotal_excluding_tax integer GENERATED ALWAYS AS (((_raw_data ->> 'subtotal_excluding_tax'::text))::integer) STORED,
+    tax_amounts jsonb GENERATED ALWAYS AS ((_raw_data -> 'tax_amounts'::text)) STORED,
+    total integer GENERATED ALWAYS AS (((_raw_data ->> 'total'::text))::integer) STORED,
+    total_excluding_tax integer GENERATED ALWAYS AS (((_raw_data ->> 'total_excluding_tax'::text))::integer) STORED,
+    type text GENERATED ALWAYS AS ((_raw_data ->> 'type'::text)) STORED,
+    voided_at text GENERATED ALWAYS AS ((_raw_data ->> 'voided_at'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: customers; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.customers (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    address jsonb GENERATED ALWAYS AS ((_raw_data -> 'address'::text)) STORED,
+    description text GENERATED ALWAYS AS ((_raw_data ->> 'description'::text)) STORED,
+    email text GENERATED ALWAYS AS ((_raw_data ->> 'email'::text)) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    name text GENERATED ALWAYS AS ((_raw_data ->> 'name'::text)) STORED,
+    phone text GENERATED ALWAYS AS ((_raw_data ->> 'phone'::text)) STORED,
+    shipping jsonb GENERATED ALWAYS AS ((_raw_data -> 'shipping'::text)) STORED,
+    balance integer GENERATED ALWAYS AS (((_raw_data ->> 'balance'::text))::integer) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    currency text GENERATED ALWAYS AS ((_raw_data ->> 'currency'::text)) STORED,
+    default_source text GENERATED ALWAYS AS ((_raw_data ->> 'default_source'::text)) STORED,
+    delinquent boolean GENERATED ALWAYS AS (((_raw_data ->> 'delinquent'::text))::boolean) STORED,
+    discount jsonb GENERATED ALWAYS AS ((_raw_data -> 'discount'::text)) STORED,
+    invoice_prefix text GENERATED ALWAYS AS ((_raw_data ->> 'invoice_prefix'::text)) STORED,
+    invoice_settings jsonb GENERATED ALWAYS AS ((_raw_data -> 'invoice_settings'::text)) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    next_invoice_sequence integer GENERATED ALWAYS AS (((_raw_data ->> 'next_invoice_sequence'::text))::integer) STORED,
+    preferred_locales jsonb GENERATED ALWAYS AS ((_raw_data -> 'preferred_locales'::text)) STORED,
+    tax_exempt text GENERATED ALWAYS AS ((_raw_data ->> 'tax_exempt'::text)) STORED,
+    deleted boolean GENERATED ALWAYS AS (((_raw_data ->> 'deleted'::text))::boolean) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: disputes; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.disputes (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    amount bigint GENERATED ALWAYS AS (((_raw_data ->> 'amount'::text))::bigint) STORED,
+    charge text GENERATED ALWAYS AS ((_raw_data ->> 'charge'::text)) STORED,
+    reason text GENERATED ALWAYS AS ((_raw_data ->> 'reason'::text)) STORED,
+    status text GENERATED ALWAYS AS ((_raw_data ->> 'status'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    updated integer GENERATED ALWAYS AS (((_raw_data ->> 'updated'::text))::integer) STORED,
+    currency text GENERATED ALWAYS AS ((_raw_data ->> 'currency'::text)) STORED,
+    evidence jsonb GENERATED ALWAYS AS ((_raw_data -> 'evidence'::text)) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    evidence_details jsonb GENERATED ALWAYS AS ((_raw_data -> 'evidence_details'::text)) STORED,
+    balance_transactions jsonb GENERATED ALWAYS AS ((_raw_data -> 'balance_transactions'::text)) STORED,
+    is_charge_refundable boolean GENERATED ALWAYS AS (((_raw_data ->> 'is_charge_refundable'::text))::boolean) STORED,
+    payment_intent text GENERATED ALWAYS AS ((_raw_data ->> 'payment_intent'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: early_fraud_warnings; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.early_fraud_warnings (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    actionable boolean GENERATED ALWAYS AS (((_raw_data ->> 'actionable'::text))::boolean) STORED,
+    charge text GENERATED ALWAYS AS ((_raw_data ->> 'charge'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    fraud_type text GENERATED ALWAYS AS ((_raw_data ->> 'fraud_type'::text)) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    payment_intent text GENERATED ALWAYS AS ((_raw_data ->> 'payment_intent'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: events; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.events (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    data jsonb GENERATED ALWAYS AS ((_raw_data -> 'data'::text)) STORED,
+    type text GENERATED ALWAYS AS ((_raw_data ->> 'type'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    request text GENERATED ALWAYS AS ((_raw_data ->> 'request'::text)) STORED,
+    updated integer GENERATED ALWAYS AS (((_raw_data ->> 'updated'::text))::integer) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    api_version text GENERATED ALWAYS AS ((_raw_data ->> 'api_version'::text)) STORED,
+    pending_webhooks bigint GENERATED ALWAYS AS (((_raw_data ->> 'pending_webhooks'::text))::bigint) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: features; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.features (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    name text GENERATED ALWAYS AS ((_raw_data ->> 'name'::text)) STORED,
+    lookup_key text GENERATED ALWAYS AS ((_raw_data ->> 'lookup_key'::text)) STORED,
+    active boolean GENERATED ALWAYS AS (((_raw_data ->> 'active'::text))::boolean) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: invoices; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.invoices (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    auto_advance boolean GENERATED ALWAYS AS (((_raw_data ->> 'auto_advance'::text))::boolean) STORED,
+    collection_method text GENERATED ALWAYS AS ((_raw_data ->> 'collection_method'::text)) STORED,
+    currency text GENERATED ALWAYS AS ((_raw_data ->> 'currency'::text)) STORED,
+    description text GENERATED ALWAYS AS ((_raw_data ->> 'description'::text)) STORED,
+    hosted_invoice_url text GENERATED ALWAYS AS ((_raw_data ->> 'hosted_invoice_url'::text)) STORED,
+    lines jsonb GENERATED ALWAYS AS ((_raw_data -> 'lines'::text)) STORED,
+    period_end integer GENERATED ALWAYS AS (((_raw_data ->> 'period_end'::text))::integer) STORED,
+    period_start integer GENERATED ALWAYS AS (((_raw_data ->> 'period_start'::text))::integer) STORED,
+    status text GENERATED ALWAYS AS ((_raw_data ->> 'status'::text)) STORED,
+    total bigint GENERATED ALWAYS AS (((_raw_data ->> 'total'::text))::bigint) STORED,
+    account_country text GENERATED ALWAYS AS ((_raw_data ->> 'account_country'::text)) STORED,
+    account_name text GENERATED ALWAYS AS ((_raw_data ->> 'account_name'::text)) STORED,
+    account_tax_ids jsonb GENERATED ALWAYS AS ((_raw_data -> 'account_tax_ids'::text)) STORED,
+    amount_due bigint GENERATED ALWAYS AS (((_raw_data ->> 'amount_due'::text))::bigint) STORED,
+    amount_paid bigint GENERATED ALWAYS AS (((_raw_data ->> 'amount_paid'::text))::bigint) STORED,
+    amount_remaining bigint GENERATED ALWAYS AS (((_raw_data ->> 'amount_remaining'::text))::bigint) STORED,
+    application_fee_amount bigint GENERATED ALWAYS AS (((_raw_data ->> 'application_fee_amount'::text))::bigint) STORED,
+    attempt_count integer GENERATED ALWAYS AS (((_raw_data ->> 'attempt_count'::text))::integer) STORED,
+    attempted boolean GENERATED ALWAYS AS (((_raw_data ->> 'attempted'::text))::boolean) STORED,
+    billing_reason text GENERATED ALWAYS AS ((_raw_data ->> 'billing_reason'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    custom_fields jsonb GENERATED ALWAYS AS ((_raw_data -> 'custom_fields'::text)) STORED,
+    customer_address jsonb GENERATED ALWAYS AS ((_raw_data -> 'customer_address'::text)) STORED,
+    customer_email text GENERATED ALWAYS AS ((_raw_data ->> 'customer_email'::text)) STORED,
+    customer_name text GENERATED ALWAYS AS ((_raw_data ->> 'customer_name'::text)) STORED,
+    customer_phone text GENERATED ALWAYS AS ((_raw_data ->> 'customer_phone'::text)) STORED,
+    customer_shipping jsonb GENERATED ALWAYS AS ((_raw_data -> 'customer_shipping'::text)) STORED,
+    customer_tax_exempt text GENERATED ALWAYS AS ((_raw_data ->> 'customer_tax_exempt'::text)) STORED,
+    customer_tax_ids jsonb GENERATED ALWAYS AS ((_raw_data -> 'customer_tax_ids'::text)) STORED,
+    default_tax_rates jsonb GENERATED ALWAYS AS ((_raw_data -> 'default_tax_rates'::text)) STORED,
+    discount jsonb GENERATED ALWAYS AS ((_raw_data -> 'discount'::text)) STORED,
+    discounts jsonb GENERATED ALWAYS AS ((_raw_data -> 'discounts'::text)) STORED,
+    due_date integer GENERATED ALWAYS AS (((_raw_data ->> 'due_date'::text))::integer) STORED,
+    ending_balance integer GENERATED ALWAYS AS (((_raw_data ->> 'ending_balance'::text))::integer) STORED,
+    footer text GENERATED ALWAYS AS ((_raw_data ->> 'footer'::text)) STORED,
+    invoice_pdf text GENERATED ALWAYS AS ((_raw_data ->> 'invoice_pdf'::text)) STORED,
+    last_finalization_error jsonb GENERATED ALWAYS AS ((_raw_data -> 'last_finalization_error'::text)) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    next_payment_attempt integer GENERATED ALWAYS AS (((_raw_data ->> 'next_payment_attempt'::text))::integer) STORED,
+    number text GENERATED ALWAYS AS ((_raw_data ->> 'number'::text)) STORED,
+    paid boolean GENERATED ALWAYS AS (((_raw_data ->> 'paid'::text))::boolean) STORED,
+    payment_settings jsonb GENERATED ALWAYS AS ((_raw_data -> 'payment_settings'::text)) STORED,
+    post_payment_credit_notes_amount integer GENERATED ALWAYS AS (((_raw_data ->> 'post_payment_credit_notes_amount'::text))::integer) STORED,
+    pre_payment_credit_notes_amount integer GENERATED ALWAYS AS (((_raw_data ->> 'pre_payment_credit_notes_amount'::text))::integer) STORED,
+    receipt_number text GENERATED ALWAYS AS ((_raw_data ->> 'receipt_number'::text)) STORED,
+    starting_balance integer GENERATED ALWAYS AS (((_raw_data ->> 'starting_balance'::text))::integer) STORED,
+    statement_descriptor text GENERATED ALWAYS AS ((_raw_data ->> 'statement_descriptor'::text)) STORED,
+    status_transitions jsonb GENERATED ALWAYS AS ((_raw_data -> 'status_transitions'::text)) STORED,
+    subtotal integer GENERATED ALWAYS AS (((_raw_data ->> 'subtotal'::text))::integer) STORED,
+    tax integer GENERATED ALWAYS AS (((_raw_data ->> 'tax'::text))::integer) STORED,
+    total_discount_amounts jsonb GENERATED ALWAYS AS ((_raw_data -> 'total_discount_amounts'::text)) STORED,
+    total_tax_amounts jsonb GENERATED ALWAYS AS ((_raw_data -> 'total_tax_amounts'::text)) STORED,
+    transfer_data jsonb GENERATED ALWAYS AS ((_raw_data -> 'transfer_data'::text)) STORED,
+    webhooks_delivered_at integer GENERATED ALWAYS AS (((_raw_data ->> 'webhooks_delivered_at'::text))::integer) STORED,
+    customer text GENERATED ALWAYS AS ((_raw_data ->> 'customer'::text)) STORED,
+    subscription text GENERATED ALWAYS AS ((_raw_data ->> 'subscription'::text)) STORED,
+    payment_intent text GENERATED ALWAYS AS ((_raw_data ->> 'payment_intent'::text)) STORED,
+    default_payment_method text GENERATED ALWAYS AS ((_raw_data ->> 'default_payment_method'::text)) STORED,
+    default_source text GENERATED ALWAYS AS ((_raw_data ->> 'default_source'::text)) STORED,
+    on_behalf_of text GENERATED ALWAYS AS ((_raw_data ->> 'on_behalf_of'::text)) STORED,
+    charge text GENERATED ALWAYS AS ((_raw_data ->> 'charge'::text)) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: payment_intents; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.payment_intents (
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    amount integer GENERATED ALWAYS AS (((_raw_data ->> 'amount'::text))::integer) STORED,
+    amount_capturable integer GENERATED ALWAYS AS (((_raw_data ->> 'amount_capturable'::text))::integer) STORED,
+    amount_details jsonb GENERATED ALWAYS AS ((_raw_data -> 'amount_details'::text)) STORED,
+    amount_received integer GENERATED ALWAYS AS (((_raw_data ->> 'amount_received'::text))::integer) STORED,
+    application text GENERATED ALWAYS AS ((_raw_data ->> 'application'::text)) STORED,
+    application_fee_amount integer GENERATED ALWAYS AS (((_raw_data ->> 'application_fee_amount'::text))::integer) STORED,
+    automatic_payment_methods text GENERATED ALWAYS AS ((_raw_data ->> 'automatic_payment_methods'::text)) STORED,
+    canceled_at integer GENERATED ALWAYS AS (((_raw_data ->> 'canceled_at'::text))::integer) STORED,
+    cancellation_reason text GENERATED ALWAYS AS ((_raw_data ->> 'cancellation_reason'::text)) STORED,
+    capture_method text GENERATED ALWAYS AS ((_raw_data ->> 'capture_method'::text)) STORED,
+    client_secret text GENERATED ALWAYS AS ((_raw_data ->> 'client_secret'::text)) STORED,
+    confirmation_method text GENERATED ALWAYS AS ((_raw_data ->> 'confirmation_method'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    currency text GENERATED ALWAYS AS ((_raw_data ->> 'currency'::text)) STORED,
+    customer text GENERATED ALWAYS AS ((_raw_data ->> 'customer'::text)) STORED,
+    description text GENERATED ALWAYS AS ((_raw_data ->> 'description'::text)) STORED,
+    invoice text GENERATED ALWAYS AS ((_raw_data ->> 'invoice'::text)) STORED,
+    last_payment_error text GENERATED ALWAYS AS ((_raw_data ->> 'last_payment_error'::text)) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    next_action text GENERATED ALWAYS AS ((_raw_data ->> 'next_action'::text)) STORED,
+    on_behalf_of text GENERATED ALWAYS AS ((_raw_data ->> 'on_behalf_of'::text)) STORED,
+    payment_method text GENERATED ALWAYS AS ((_raw_data ->> 'payment_method'::text)) STORED,
+    payment_method_options jsonb GENERATED ALWAYS AS ((_raw_data -> 'payment_method_options'::text)) STORED,
+    payment_method_types jsonb GENERATED ALWAYS AS ((_raw_data -> 'payment_method_types'::text)) STORED,
+    processing text GENERATED ALWAYS AS ((_raw_data ->> 'processing'::text)) STORED,
+    receipt_email text GENERATED ALWAYS AS ((_raw_data ->> 'receipt_email'::text)) STORED,
+    review text GENERATED ALWAYS AS ((_raw_data ->> 'review'::text)) STORED,
+    setup_future_usage text GENERATED ALWAYS AS ((_raw_data ->> 'setup_future_usage'::text)) STORED,
+    shipping jsonb GENERATED ALWAYS AS ((_raw_data -> 'shipping'::text)) STORED,
+    statement_descriptor text GENERATED ALWAYS AS ((_raw_data ->> 'statement_descriptor'::text)) STORED,
+    statement_descriptor_suffix text GENERATED ALWAYS AS ((_raw_data ->> 'statement_descriptor_suffix'::text)) STORED,
+    status text GENERATED ALWAYS AS ((_raw_data ->> 'status'::text)) STORED,
+    transfer_data jsonb GENERATED ALWAYS AS ((_raw_data -> 'transfer_data'::text)) STORED,
+    transfer_group text GENERATED ALWAYS AS ((_raw_data ->> 'transfer_group'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: payment_methods; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.payment_methods (
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    customer text GENERATED ALWAYS AS ((_raw_data ->> 'customer'::text)) STORED,
+    type text GENERATED ALWAYS AS ((_raw_data ->> 'type'::text)) STORED,
+    billing_details jsonb GENERATED ALWAYS AS ((_raw_data -> 'billing_details'::text)) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    card jsonb GENERATED ALWAYS AS ((_raw_data -> 'card'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: payouts; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.payouts (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    date text GENERATED ALWAYS AS ((_raw_data ->> 'date'::text)) STORED,
+    type text GENERATED ALWAYS AS ((_raw_data ->> 'type'::text)) STORED,
+    amount bigint GENERATED ALWAYS AS (((_raw_data ->> 'amount'::text))::bigint) STORED,
+    method text GENERATED ALWAYS AS ((_raw_data ->> 'method'::text)) STORED,
+    status text GENERATED ALWAYS AS ((_raw_data ->> 'status'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    updated integer GENERATED ALWAYS AS (((_raw_data ->> 'updated'::text))::integer) STORED,
+    currency text GENERATED ALWAYS AS ((_raw_data ->> 'currency'::text)) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    automatic boolean GENERATED ALWAYS AS (((_raw_data ->> 'automatic'::text))::boolean) STORED,
+    recipient text GENERATED ALWAYS AS ((_raw_data ->> 'recipient'::text)) STORED,
+    description text GENERATED ALWAYS AS ((_raw_data ->> 'description'::text)) STORED,
+    destination text GENERATED ALWAYS AS ((_raw_data ->> 'destination'::text)) STORED,
+    source_type text GENERATED ALWAYS AS ((_raw_data ->> 'source_type'::text)) STORED,
+    arrival_date text GENERATED ALWAYS AS ((_raw_data ->> 'arrival_date'::text)) STORED,
+    bank_account jsonb GENERATED ALWAYS AS ((_raw_data -> 'bank_account'::text)) STORED,
+    failure_code text GENERATED ALWAYS AS ((_raw_data ->> 'failure_code'::text)) STORED,
+    transfer_group text GENERATED ALWAYS AS ((_raw_data ->> 'transfer_group'::text)) STORED,
+    amount_reversed bigint GENERATED ALWAYS AS (((_raw_data ->> 'amount_reversed'::text))::bigint) STORED,
+    failure_message text GENERATED ALWAYS AS ((_raw_data ->> 'failure_message'::text)) STORED,
+    source_transaction text GENERATED ALWAYS AS ((_raw_data ->> 'source_transaction'::text)) STORED,
+    balance_transaction text GENERATED ALWAYS AS ((_raw_data ->> 'balance_transaction'::text)) STORED,
+    statement_descriptor text GENERATED ALWAYS AS ((_raw_data ->> 'statement_descriptor'::text)) STORED,
+    statement_description text GENERATED ALWAYS AS ((_raw_data ->> 'statement_description'::text)) STORED,
+    failure_balance_transaction text GENERATED ALWAYS AS ((_raw_data ->> 'failure_balance_transaction'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: plans; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.plans (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    name text GENERATED ALWAYS AS ((_raw_data ->> 'name'::text)) STORED,
+    tiers jsonb GENERATED ALWAYS AS ((_raw_data -> 'tiers'::text)) STORED,
+    active boolean GENERATED ALWAYS AS (((_raw_data ->> 'active'::text))::boolean) STORED,
+    amount bigint GENERATED ALWAYS AS (((_raw_data ->> 'amount'::text))::bigint) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    product text GENERATED ALWAYS AS ((_raw_data ->> 'product'::text)) STORED,
+    updated integer GENERATED ALWAYS AS (((_raw_data ->> 'updated'::text))::integer) STORED,
+    currency text GENERATED ALWAYS AS ((_raw_data ->> 'currency'::text)) STORED,
+    "interval" text GENERATED ALWAYS AS ((_raw_data ->> 'interval'::text)) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    nickname text GENERATED ALWAYS AS ((_raw_data ->> 'nickname'::text)) STORED,
+    tiers_mode text GENERATED ALWAYS AS ((_raw_data ->> 'tiers_mode'::text)) STORED,
+    usage_type text GENERATED ALWAYS AS ((_raw_data ->> 'usage_type'::text)) STORED,
+    billing_scheme text GENERATED ALWAYS AS ((_raw_data ->> 'billing_scheme'::text)) STORED,
+    interval_count bigint GENERATED ALWAYS AS (((_raw_data ->> 'interval_count'::text))::bigint) STORED,
+    aggregate_usage text GENERATED ALWAYS AS ((_raw_data ->> 'aggregate_usage'::text)) STORED,
+    transform_usage text GENERATED ALWAYS AS ((_raw_data ->> 'transform_usage'::text)) STORED,
+    trial_period_days bigint GENERATED ALWAYS AS (((_raw_data ->> 'trial_period_days'::text))::bigint) STORED,
+    statement_descriptor text GENERATED ALWAYS AS ((_raw_data ->> 'statement_descriptor'::text)) STORED,
+    statement_description text GENERATED ALWAYS AS ((_raw_data ->> 'statement_description'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: prices; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.prices (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    active boolean GENERATED ALWAYS AS (((_raw_data ->> 'active'::text))::boolean) STORED,
+    currency text GENERATED ALWAYS AS ((_raw_data ->> 'currency'::text)) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    nickname text GENERATED ALWAYS AS ((_raw_data ->> 'nickname'::text)) STORED,
+    recurring jsonb GENERATED ALWAYS AS ((_raw_data -> 'recurring'::text)) STORED,
+    type text GENERATED ALWAYS AS ((_raw_data ->> 'type'::text)) STORED,
+    unit_amount integer GENERATED ALWAYS AS (((_raw_data ->> 'unit_amount'::text))::integer) STORED,
+    billing_scheme text GENERATED ALWAYS AS ((_raw_data ->> 'billing_scheme'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    lookup_key text GENERATED ALWAYS AS ((_raw_data ->> 'lookup_key'::text)) STORED,
+    tiers_mode text GENERATED ALWAYS AS ((_raw_data ->> 'tiers_mode'::text)) STORED,
+    transform_quantity jsonb GENERATED ALWAYS AS ((_raw_data -> 'transform_quantity'::text)) STORED,
+    unit_amount_decimal text GENERATED ALWAYS AS ((_raw_data ->> 'unit_amount_decimal'::text)) STORED,
+    product text GENERATED ALWAYS AS ((_raw_data ->> 'product'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: products; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.products (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    active boolean GENERATED ALWAYS AS (((_raw_data ->> 'active'::text))::boolean) STORED,
+    default_price text GENERATED ALWAYS AS ((_raw_data ->> 'default_price'::text)) STORED,
+    description text GENERATED ALWAYS AS ((_raw_data ->> 'description'::text)) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    name text GENERATED ALWAYS AS ((_raw_data ->> 'name'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    images jsonb GENERATED ALWAYS AS ((_raw_data -> 'images'::text)) STORED,
+    marketing_features jsonb GENERATED ALWAYS AS ((_raw_data -> 'marketing_features'::text)) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    package_dimensions jsonb GENERATED ALWAYS AS ((_raw_data -> 'package_dimensions'::text)) STORED,
+    shippable boolean GENERATED ALWAYS AS (((_raw_data ->> 'shippable'::text))::boolean) STORED,
+    statement_descriptor text GENERATED ALWAYS AS ((_raw_data ->> 'statement_descriptor'::text)) STORED,
+    unit_label text GENERATED ALWAYS AS ((_raw_data ->> 'unit_label'::text)) STORED,
+    updated integer GENERATED ALWAYS AS (((_raw_data ->> 'updated'::text))::integer) STORED,
+    url text GENERATED ALWAYS AS ((_raw_data ->> 'url'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: refunds; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.refunds (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    amount integer GENERATED ALWAYS AS (((_raw_data ->> 'amount'::text))::integer) STORED,
+    balance_transaction text GENERATED ALWAYS AS ((_raw_data ->> 'balance_transaction'::text)) STORED,
+    charge text GENERATED ALWAYS AS ((_raw_data ->> 'charge'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    currency text GENERATED ALWAYS AS ((_raw_data ->> 'currency'::text)) STORED,
+    destination_details jsonb GENERATED ALWAYS AS ((_raw_data -> 'destination_details'::text)) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    payment_intent text GENERATED ALWAYS AS ((_raw_data ->> 'payment_intent'::text)) STORED,
+    reason text GENERATED ALWAYS AS ((_raw_data ->> 'reason'::text)) STORED,
+    receipt_number text GENERATED ALWAYS AS ((_raw_data ->> 'receipt_number'::text)) STORED,
+    source_transfer_reversal text GENERATED ALWAYS AS ((_raw_data ->> 'source_transfer_reversal'::text)) STORED,
+    status text GENERATED ALWAYS AS ((_raw_data ->> 'status'::text)) STORED,
+    transfer_reversal text GENERATED ALWAYS AS ((_raw_data ->> 'transfer_reversal'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: reviews; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.reviews (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    billing_zip text GENERATED ALWAYS AS ((_raw_data ->> 'billing_zip'::text)) STORED,
+    charge text GENERATED ALWAYS AS ((_raw_data ->> 'charge'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    closed_reason text GENERATED ALWAYS AS ((_raw_data ->> 'closed_reason'::text)) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    ip_address text GENERATED ALWAYS AS ((_raw_data ->> 'ip_address'::text)) STORED,
+    ip_address_location jsonb GENERATED ALWAYS AS ((_raw_data -> 'ip_address_location'::text)) STORED,
+    open boolean GENERATED ALWAYS AS (((_raw_data ->> 'open'::text))::boolean) STORED,
+    opened_reason text GENERATED ALWAYS AS ((_raw_data ->> 'opened_reason'::text)) STORED,
+    payment_intent text GENERATED ALWAYS AS ((_raw_data ->> 'payment_intent'::text)) STORED,
+    reason text GENERATED ALWAYS AS ((_raw_data ->> 'reason'::text)) STORED,
+    session text GENERATED ALWAYS AS ((_raw_data ->> 'session'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: setup_intents; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.setup_intents (
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    customer text GENERATED ALWAYS AS ((_raw_data ->> 'customer'::text)) STORED,
+    description text GENERATED ALWAYS AS ((_raw_data ->> 'description'::text)) STORED,
+    payment_method text GENERATED ALWAYS AS ((_raw_data ->> 'payment_method'::text)) STORED,
+    status text GENERATED ALWAYS AS ((_raw_data ->> 'status'::text)) STORED,
+    usage text GENERATED ALWAYS AS ((_raw_data ->> 'usage'::text)) STORED,
+    cancellation_reason text GENERATED ALWAYS AS ((_raw_data ->> 'cancellation_reason'::text)) STORED,
+    latest_attempt text GENERATED ALWAYS AS ((_raw_data ->> 'latest_attempt'::text)) STORED,
+    mandate text GENERATED ALWAYS AS ((_raw_data ->> 'mandate'::text)) STORED,
+    single_use_mandate text GENERATED ALWAYS AS ((_raw_data ->> 'single_use_mandate'::text)) STORED,
+    on_behalf_of text GENERATED ALWAYS AS ((_raw_data ->> 'on_behalf_of'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: subscription_items; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.subscription_items (
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    billing_thresholds jsonb GENERATED ALWAYS AS ((_raw_data -> 'billing_thresholds'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    deleted boolean GENERATED ALWAYS AS (((_raw_data ->> 'deleted'::text))::boolean) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    quantity integer GENERATED ALWAYS AS (((_raw_data ->> 'quantity'::text))::integer) STORED,
+    price text GENERATED ALWAYS AS ((_raw_data ->> 'price'::text)) STORED,
+    subscription text GENERATED ALWAYS AS ((_raw_data ->> 'subscription'::text)) STORED,
+    tax_rates jsonb GENERATED ALWAYS AS ((_raw_data -> 'tax_rates'::text)) STORED,
+    current_period_end integer GENERATED ALWAYS AS (((_raw_data ->> 'current_period_end'::text))::integer) STORED,
+    current_period_start integer GENERATED ALWAYS AS (((_raw_data ->> 'current_period_start'::text))::integer) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: subscription_schedules; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.subscription_schedules (
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    application text GENERATED ALWAYS AS ((_raw_data ->> 'application'::text)) STORED,
+    canceled_at integer GENERATED ALWAYS AS (((_raw_data ->> 'canceled_at'::text))::integer) STORED,
+    completed_at integer GENERATED ALWAYS AS (((_raw_data ->> 'completed_at'::text))::integer) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    current_phase jsonb GENERATED ALWAYS AS ((_raw_data -> 'current_phase'::text)) STORED,
+    customer text GENERATED ALWAYS AS ((_raw_data ->> 'customer'::text)) STORED,
+    default_settings jsonb GENERATED ALWAYS AS ((_raw_data -> 'default_settings'::text)) STORED,
+    end_behavior text GENERATED ALWAYS AS ((_raw_data ->> 'end_behavior'::text)) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    phases jsonb GENERATED ALWAYS AS ((_raw_data -> 'phases'::text)) STORED,
+    released_at integer GENERATED ALWAYS AS (((_raw_data ->> 'released_at'::text))::integer) STORED,
+    released_subscription text GENERATED ALWAYS AS ((_raw_data ->> 'released_subscription'::text)) STORED,
+    status text GENERATED ALWAYS AS ((_raw_data ->> 'status'::text)) STORED,
+    subscription text GENERATED ALWAYS AS ((_raw_data ->> 'subscription'::text)) STORED,
+    test_clock text GENERATED ALWAYS AS ((_raw_data ->> 'test_clock'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: subscriptions; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.subscriptions (
+    _updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    cancel_at_period_end boolean GENERATED ALWAYS AS (((_raw_data ->> 'cancel_at_period_end'::text))::boolean) STORED,
+    current_period_end integer GENERATED ALWAYS AS (((_raw_data ->> 'current_period_end'::text))::integer) STORED,
+    current_period_start integer GENERATED ALWAYS AS (((_raw_data ->> 'current_period_start'::text))::integer) STORED,
+    default_payment_method text GENERATED ALWAYS AS ((_raw_data ->> 'default_payment_method'::text)) STORED,
+    items jsonb GENERATED ALWAYS AS ((_raw_data -> 'items'::text)) STORED,
+    metadata jsonb GENERATED ALWAYS AS ((_raw_data -> 'metadata'::text)) STORED,
+    pending_setup_intent text GENERATED ALWAYS AS ((_raw_data ->> 'pending_setup_intent'::text)) STORED,
+    pending_update jsonb GENERATED ALWAYS AS ((_raw_data -> 'pending_update'::text)) STORED,
+    status text GENERATED ALWAYS AS ((_raw_data ->> 'status'::text)) STORED,
+    application_fee_percent double precision GENERATED ALWAYS AS (((_raw_data ->> 'application_fee_percent'::text))::double precision) STORED,
+    billing_cycle_anchor integer GENERATED ALWAYS AS (((_raw_data ->> 'billing_cycle_anchor'::text))::integer) STORED,
+    billing_thresholds jsonb GENERATED ALWAYS AS ((_raw_data -> 'billing_thresholds'::text)) STORED,
+    cancel_at integer GENERATED ALWAYS AS (((_raw_data ->> 'cancel_at'::text))::integer) STORED,
+    canceled_at integer GENERATED ALWAYS AS (((_raw_data ->> 'canceled_at'::text))::integer) STORED,
+    collection_method text GENERATED ALWAYS AS ((_raw_data ->> 'collection_method'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    days_until_due integer GENERATED ALWAYS AS (((_raw_data ->> 'days_until_due'::text))::integer) STORED,
+    default_source text GENERATED ALWAYS AS ((_raw_data ->> 'default_source'::text)) STORED,
+    default_tax_rates jsonb GENERATED ALWAYS AS ((_raw_data -> 'default_tax_rates'::text)) STORED,
+    discount jsonb GENERATED ALWAYS AS ((_raw_data -> 'discount'::text)) STORED,
+    ended_at integer GENERATED ALWAYS AS (((_raw_data ->> 'ended_at'::text))::integer) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    next_pending_invoice_item_invoice integer GENERATED ALWAYS AS (((_raw_data ->> 'next_pending_invoice_item_invoice'::text))::integer) STORED,
+    pause_collection jsonb GENERATED ALWAYS AS ((_raw_data -> 'pause_collection'::text)) STORED,
+    pending_invoice_item_interval jsonb GENERATED ALWAYS AS ((_raw_data -> 'pending_invoice_item_interval'::text)) STORED,
+    start_date integer GENERATED ALWAYS AS (((_raw_data ->> 'start_date'::text))::integer) STORED,
+    transfer_data jsonb GENERATED ALWAYS AS ((_raw_data -> 'transfer_data'::text)) STORED,
+    trial_end jsonb GENERATED ALWAYS AS ((_raw_data -> 'trial_end'::text)) STORED,
+    trial_start jsonb GENERATED ALWAYS AS ((_raw_data -> 'trial_start'::text)) STORED,
+    schedule text GENERATED ALWAYS AS ((_raw_data ->> 'schedule'::text)) STORED,
+    customer text GENERATED ALWAYS AS ((_raw_data ->> 'customer'::text)) STORED,
+    latest_invoice text GENERATED ALWAYS AS ((_raw_data ->> 'latest_invoice'::text)) STORED,
+    plan text GENERATED ALWAYS AS ((_raw_data ->> 'plan'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: tax_ids; Type: TABLE; Schema: stripe; Owner: -
+--
+
+CREATE TABLE stripe.tax_ids (
+    _last_synced_at timestamp with time zone,
+    _raw_data jsonb,
+    _account_id text NOT NULL,
+    object text GENERATED ALWAYS AS ((_raw_data ->> 'object'::text)) STORED,
+    country text GENERATED ALWAYS AS ((_raw_data ->> 'country'::text)) STORED,
+    customer text GENERATED ALWAYS AS ((_raw_data ->> 'customer'::text)) STORED,
+    type text GENERATED ALWAYS AS ((_raw_data ->> 'type'::text)) STORED,
+    value text GENERATED ALWAYS AS ((_raw_data ->> 'value'::text)) STORED,
+    created integer GENERATED ALWAYS AS (((_raw_data ->> 'created'::text))::integer) STORED,
+    livemode boolean GENERATED ALWAYS AS (((_raw_data ->> 'livemode'::text))::boolean) STORED,
+    owner jsonb GENERATED ALWAYS AS ((_raw_data -> 'owner'::text)) STORED,
+    id text GENERATED ALWAYS AS ((_raw_data ->> 'id'::text)) STORED NOT NULL
+);
+
+
+--
+-- Name: article_categories id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.article_categories ALTER COLUMN id SET DEFAULT nextval('public.article_categories_id_seq'::regclass);
+
+
+--
+-- Name: connection_notifications id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.connection_notifications ALTER COLUMN id SET DEFAULT nextval('public.connection_notifications_id_seq'::regclass);
+
+
+--
+-- Name: event_categories id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_categories ALTER COLUMN id SET DEFAULT nextval('public.event_categories_id_seq'::regclass);
+
+
+--
+-- Name: messages id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messages ALTER COLUMN id SET DEFAULT nextval('public.messages_id_seq'::regclass);
+
+
+--
+-- Name: play_request_criteria id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.play_request_criteria ALTER COLUMN id SET DEFAULT nextval('public.play_request_criteria_id_seq'::regclass);
+
+
+--
+-- Name: play_request_offer_criteria id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.play_request_offer_criteria ALTER COLUMN id SET DEFAULT nextval('public.play_request_offer_criteria_id_seq'::regclass);
+
+
+--
+-- Name: play_request_offers id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.play_request_offers ALTER COLUMN id SET DEFAULT nextval('public.play_request_offers_id_seq'::regclass);
+
+
+--
+-- Name: play_requests id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.play_requests ALTER COLUMN id SET DEFAULT nextval('public.play_requests_id_seq'::regclass);
+
+
+--
+-- Name: profile_field_definitions id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.profile_field_definitions ALTER COLUMN id SET DEFAULT nextval('public.profile_field_definitions_id_seq'::regclass);
+
+
+--
+-- Name: profile_field_options id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.profile_field_options ALTER COLUMN id SET DEFAULT nextval('public.profile_field_options_id_seq'::regclass);
+
+
+--
+-- Name: profile_field_selector_values id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.profile_field_selector_values ALTER COLUMN id SET DEFAULT nextval('public.profile_field_selector_values_id_seq'::regclass);
+
+
+--
+-- Name: profile_pictures id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.profile_pictures ALTER COLUMN id SET DEFAULT nextval('public.profile_pictures_id_seq'::regclass);
+
+
+--
+-- Name: review_categories id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.review_categories ALTER COLUMN id SET DEFAULT nextval('public.review_categories_id_seq'::regclass);
+
+
+--
+-- Name: subscription_plans id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.subscription_plans ALTER COLUMN id SET DEFAULT nextval('public.subscription_plans_id_seq'::regclass);
+
+
+--
+-- Name: tee_time_offer_criteria id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tee_time_offer_criteria ALTER COLUMN id SET DEFAULT nextval('public.tee_time_offer_criteria_id_seq'::regclass);
+
+
+--
+-- Name: tee_time_offers id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tee_time_offers ALTER COLUMN id SET DEFAULT nextval('public.tee_time_offers_id_seq'::regclass);
+
+
+--
+-- Name: tee_time_reservations id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tee_time_reservations ALTER COLUMN id SET DEFAULT nextval('public.tee_time_reservations_id_seq'::regclass);
+
+
+--
+-- Name: user_connections id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_connections ALTER COLUMN id SET DEFAULT nextval('public.user_connections_id_seq'::regclass);
+
+
+--
+-- Name: user_profile_field_values id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_profile_field_values ALTER COLUMN id SET DEFAULT nextval('public.user_profile_field_values_id_seq'::regclass);
+
+
+--
+-- Name: _sync_status id; Type: DEFAULT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe._sync_status ALTER COLUMN id SET DEFAULT nextval('stripe._sync_status_id_seq'::regclass);
+
+
+--
+-- Data for Name: accommodations; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.accommodations (id, name, display_address, thumbnail_url, nightly_price_from, total_price, currency, rating, review_count, affiliate_url, amenities, stay_type, neighborhood, description, available, booking_com_id, latitude, longitude) VALUES ('e7003742-2e62-4981-b5c5-1596495abdf5', 'The Oyster House B&B', 'Mumbles Road, Mumbles', 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600&h=450&fit=crop', 95, NULL, 'GBP', 4.8, 234, 'https://www.booking.com/hotel/gb/oyster-house-mumbles.html?aid=YOUR_AFFILIATE_ID', '["WiFi","Breakfast","Sea View","Parking"]', 'B&B', 'Mumbles Village', 'Charming B&B with stunning bay views and award-winning breakfast.', true, NULL, NULL, NULL);
+INSERT INTO public.accommodations (id, name, display_address, thumbnail_url, nightly_price_from, total_price, currency, rating, review_count, affiliate_url, amenities, stay_type, neighborhood, description, available, booking_com_id, latitude, longitude) VALUES ('cb3f3c4b-780d-495e-b931-5a8aa6fa79c3', 'Langland Bay Hotel', 'Langland Bay, Mumbles', 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&h=450&fit=crop', 145, NULL, 'GBP', 4.5, 512, 'https://www.booking.com/hotel/gb/langland-bay.html?aid=YOUR_AFFILIATE_ID', '["WiFi","Restaurant","Bar","Sea View","Parking"]', 'Hotel', 'Langland', 'Elegant clifftop hotel overlooking the beautiful Langland Bay.', true, NULL, NULL, NULL);
+INSERT INTO public.accommodations (id, name, display_address, thumbnail_url, nightly_price_from, total_price, currency, rating, review_count, affiliate_url, amenities, stay_type, neighborhood, description, available, booking_com_id, latitude, longitude) VALUES ('961e6c66-98b7-40f5-a23f-2ad5b473e90c', 'Bracelet Bay Cottage', 'Near Bracelet Bay, Mumbles', 'https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=600&h=450&fit=crop', 175, NULL, 'GBP', 4.9, 89, 'https://www.booking.com/hotel/gb/bracelet-bay-cottage.html?aid=YOUR_AFFILIATE_ID', '["WiFi","Parking","Sea View","Pet Friendly"]', 'Cottage', 'Bracelet Bay', 'Cosy stone cottage perfect for a romantic getaway by the sea.', true, NULL, NULL, NULL);
+INSERT INTO public.accommodations (id, name, display_address, thumbnail_url, nightly_price_from, total_price, currency, rating, review_count, affiliate_url, amenities, stay_type, neighborhood, description, available, booking_com_id, latitude, longitude) VALUES ('211cf03e-80d9-40af-a654-c8c89d247aa1', 'The Mermaid Guest House', 'Newton Road, Mumbles', 'https://images.unsplash.com/photo-1564501049412-61c2a3083791?w=600&h=450&fit=crop', 75, NULL, 'GBP', 4.3, 178, 'https://www.booking.com/hotel/gb/mermaid-guesthouse-mumbles.html?aid=YOUR_AFFILIATE_ID', '["WiFi","Breakfast","Parking"]', 'Guest House', 'Mumbles Village', 'Friendly, family-run guest house with comfortable rooms.', true, NULL, NULL, NULL);
+INSERT INTO public.accommodations (id, name, display_address, thumbnail_url, nightly_price_from, total_price, currency, rating, review_count, affiliate_url, amenities, stay_type, neighborhood, description, available, booking_com_id, latitude, longitude) VALUES ('b4bf82d1-0782-4c38-a7d5-b6cd9f48dc95', 'Lighthouse View Apartment', 'Mumbles Head, Mumbles', 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600&h=450&fit=crop', 130, NULL, 'GBP', 4.7, 156, 'https://www.booking.com/hotel/gb/lighthouse-view-apt.html?aid=YOUR_AFFILIATE_ID', '["WiFi","Sea View","Parking"]', 'Apartment', 'Mumbles Head', 'Modern apartment with panoramic views of Mumbles Lighthouse.', true, NULL, NULL, NULL);
+INSERT INTO public.accommodations (id, name, display_address, thumbnail_url, nightly_price_from, total_price, currency, rating, review_count, affiliate_url, amenities, stay_type, neighborhood, description, available, booking_com_id, latitude, longitude) VALUES ('0feca026-0c75-4959-9b06-028a209a38da', 'Norton House Hotel', 'Norton, Mumbles', 'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=600&h=450&fit=crop', 185, NULL, 'GBP', 4.6, 324, 'https://www.booking.com/hotel/gb/norton-house-mumbles.html?aid=YOUR_AFFILIATE_ID', '["WiFi","Restaurant","Bar","Spa","Gym","Parking"]', 'Hotel', 'Norton', 'Award-winning boutique hotel with spa and fine dining.', true, NULL, NULL, NULL);
+INSERT INTO public.accommodations (id, name, display_address, thumbnail_url, nightly_price_from, total_price, currency, rating, review_count, affiliate_url, amenities, stay_type, neighborhood, description, available, booking_com_id, latitude, longitude) VALUES ('dc68e988-47b6-43f4-a445-6734708699b4', 'Bay View B&B', 'Oystermouth, Mumbles', 'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?w=600&h=450&fit=crop', 85, NULL, 'GBP', 4.4, 203, 'https://www.booking.com/hotel/gb/bay-view-bb-mumbles.html?aid=YOUR_AFFILIATE_ID', '["WiFi","Breakfast","Sea View"]', 'B&B', 'Oystermouth', 'Traditional B&B with comfortable rooms and sea views.', true, NULL, NULL, NULL);
+INSERT INTO public.accommodations (id, name, display_address, thumbnail_url, nightly_price_from, total_price, currency, rating, review_count, affiliate_url, amenities, stay_type, neighborhood, description, available, booking_com_id, latitude, longitude) VALUES ('969c1aa5-86d4-494c-bda0-098fed79cb41', 'The Sail Loft Cottage', 'Mumbles Pier, Mumbles', 'https://images.unsplash.com/photo-1510798831971-661eb04b3739?w=600&h=450&fit=crop', 195, NULL, 'GBP', 4.9, 67, 'https://www.booking.com/hotel/gb/sail-loft-cottage.html?aid=YOUR_AFFILIATE_ID', '["WiFi","Sea View","Pet Friendly","Parking"]', 'Cottage', 'Mumbles Pier', 'Beautifully converted sail loft with stunning harbour views.', true, NULL, NULL, NULL);
+
+
+--
+-- Data for Name: article_categories; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.article_categories (id, name, icon, order_index, created_at) VALUES (2, 'Golf', 'golf', 0, '2026-01-10 11:02:12.920622');
+INSERT INTO public.article_categories (id, name, icon, order_index, created_at) VALUES (1, 'Restaurants', 'restaurant', 1, '2026-01-10 11:02:12.915388');
+INSERT INTO public.article_categories (id, name, icon, order_index, created_at) VALUES (5, 'History', 'folder', 2, '2026-01-10 11:02:12.941273');
+INSERT INTO public.article_categories (id, name, icon, order_index, created_at) VALUES (3, 'Beaches', 'beach', 3, '2026-01-10 11:02:12.926174');
+INSERT INTO public.article_categories (id, name, icon, order_index, created_at) VALUES (4, 'Nightlife', 'folder', 4, '2026-01-10 11:02:12.937378');
+INSERT INTO public.article_categories (id, name, icon, order_index, created_at) VALUES (6, 'Local Tips Test', 'folder', 5, '2026-01-10 11:02:12.944618');
+INSERT INTO public.article_categories (id, name, icon, order_index, created_at) VALUES (7, 'Shopping', 'gift', 6, '2026-01-10 11:02:12.964395');
+INSERT INTO public.article_categories (id, name, icon, order_index, created_at) VALUES (8, 'Family', 'folder', 7, '2026-01-10 11:02:12.980073');
+
+
+--
+-- Data for Name: article_likes; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.article_likes (id, article_id, user_id) VALUES ('c6c413c4-9652-402a-8f3a-ff3a64b8f67d', '0f559519-9168-4bf4-8b86-91e1cfcf36b9', 'bc72fed0-afab-45cb-bbca-c8baeca541ff');
+INSERT INTO public.article_likes (id, article_id, user_id) VALUES ('540557d0-7920-4d2c-8066-3962aa3efdea', '0f559519-9168-4bf4-8b86-91e1cfcf36b9', '8df4e439-c84b-4122-8dfb-95a3815e11ed');
+
+
+--
+-- Data for Name: article_sections; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.article_sections (id, article_id, order_index, section_type, heading, content, media_urls, media_captions, mux_playback_id, mux_asset_id) VALUES ('a47dea04-3d8c-497f-b408-e0ad2336b8b5', '82c3437e-1003-4096-8d04-5b68222c06f9', 0, 'text', '', '<p>This is an article to tst videos.</p>', '[]', '[]', NULL, NULL);
+INSERT INTO public.article_sections (id, article_id, order_index, section_type, heading, content, media_urls, media_captions, mux_playback_id, mux_asset_id) VALUES ('a3ddc3ef-9b1b-45c2-8d43-eb1f2c94b70d', '82c3437e-1003-4096-8d04-5b68222c06f9', 1, 'video', 'Look at the first test video below', '', '[]', '[]', 'FZHFhCqvGEO01Ps9jTo021MFpVp2zKjXSTUObr2dF5DCo', '5x01q01zRWNuFkYofTjXbiEYI5XwbQxr9tkjPY15R00i4A');
+INSERT INTO public.article_sections (id, article_id, order_index, section_type, heading, content, media_urls, media_captions, mux_playback_id, mux_asset_id) VALUES ('00dd34a9-3057-44ef-a76a-28f7b11f1595', '82c3437e-1003-4096-8d04-5b68222c06f9', 2, 'video', 'Video 2 in MIUX', NULL, '[]', '[]', 'LxfsZDiqASpOtHmdSQzgRbOAEmCXTzMd01Maj7YDZiQQ', 'cFwMpIzNDQrU8ulD01YLP61CaCjW95cGu4PHqiyBMgdg');
+
+
+--
+-- Data for Name: articles; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.articles (id, title, slug, category, excerpt, content, hero_image_url, published_at, author, reading_time, boosted_likes, image_urls) VALUES ('cb636ba3-49e1-41cc-b47d-ad38e2fb2ca0', 'St Andrews Golf', 'best-golf', 'Golf', 'From the famous Verdi''s to hidden gems along the promenade, we''ve tasted them all so you don''t have to.', 'Mumbles is renowned for its exceptional fish and chip shops...', '/objects/uploads/2cfe846e-03e1-497c-9139-9d6b58a142a6', '2024-12-15', 'Gareth Thomas', 5, 0, '[]');
+INSERT INTO public.articles (id, title, slug, category, excerpt, content, hero_image_url, published_at, author, reading_time, boosted_likes, image_urls) VALUES ('992688c8-70cd-49e9-b768-cd9e9ec0fa27', 'The Art of Forged Irons', 'miura-forged-irons', 'Golf', 'Handcrafted excellence since 1957. Experience the feel of true Japanese craftsmanship with Miura irons.', '<p><strong>Engineered for Precision. Built for the Player.</strong></p><p>At Miura, every iron starts with a simple belief — true performance comes from perfection in every detail. That''s why our new line of Miura irons pushes the boundaries of feel, consistency, and control.</p><p>Forged with centuries-old craftsmanship and refined with today''s most advanced techniques, these irons deliver a fluid feel and pure feedback that better players demand. Whether you''re shaping shots or finding razor-sharp distances, Miura irons respond like no other.</p><p>This isn''t mass production — it''s masterful forging, one iron at a time, for golfers who want the best in their hands.</p><p><em>Experience the precision. Elevate your game with Miura irons.</em></p>', 'https://images.unsplash.com/photo-1535131749006-b7f58c99034b?w=1200&h=600&fit=crop', '2026-01-27', 'Sponsored Content', 3, 0, '{}');
+INSERT INTO public.articles (id, title, slug, category, excerpt, content, hero_image_url, published_at, author, reading_time, boosted_likes, image_urls) VALUES ('82c3437e-1003-4096-8d04-5b68222c06f9', 'Video Test', 'Video Test', 'Restaurants', 'Video TestVVideo Testideo Test', '', '/objects/uploads/8f2b9be6-136a-4bca-acfd-8dcb13af3c8b', '2026-02-25', 'Video Test', 5, 0, '[]');
+
+
+--
+-- Data for Name: comments; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.comments (id, article_id, user_id, content, created_at, parent_comment_id, updated_at, edited) VALUES ('f8d1b0aa-00b4-4cba-9126-2ab5f72450cc', '0f559519-9168-4bf4-8b86-91e1cfcf36b9', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'nice', '2025-12-31 13:42:48.096805', '39e5b6f0-57cd-4688-bf09-4f95376785fa', NULL, false);
+INSERT INTO public.comments (id, article_id, user_id, content, created_at, parent_comment_id, updated_at, edited) VALUES ('209432eb-02b5-40b6-ac01-55502b4256c4', '0f559519-9168-4bf4-8b86-91e1cfcf36b9', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'as', '2026-01-01 12:44:37.365626', NULL, NULL, false);
+
+
+--
+-- Data for Name: competition_brackets; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.competition_brackets (id, event_id, total_rounds, created_at) VALUES ('16ae1428-5434-4305-8ccf-af50be01666e', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 4, '2026-01-13 22:09:08.18791');
+INSERT INTO public.competition_brackets (id, event_id, total_rounds, created_at) VALUES ('47174f88-73bd-45cf-ade0-e502953c83e6', 'ade97168-005c-4ea7-9456-d8649854b331', 4, '2026-01-13 23:07:07.966123');
+INSERT INTO public.competition_brackets (id, event_id, total_rounds, created_at) VALUES ('985f3743-6145-4607-ba05-4d5029996298', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 3, '2026-01-14 16:11:16.766124');
+INSERT INTO public.competition_brackets (id, event_id, total_rounds, created_at) VALUES ('ae27c95a-96df-4d9a-9579-d48f16de0c68', 'bc768859-08b3-4032-8484-bef764577794', 3, '2026-01-14 22:22:13.058604');
+INSERT INTO public.competition_brackets (id, event_id, total_rounds, created_at) VALUES ('d8737a88-6ca2-473c-b497-36f2ec2f9730', '57675f9d-62ba-4214-b268-567267dbefbd', 3, '2026-01-14 22:34:28.252256');
+INSERT INTO public.competition_brackets (id, event_id, total_rounds, created_at) VALUES ('8ed7a14f-e44c-4dbc-a4aa-a7a0e4c887be', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 3, '2026-01-15 16:33:31.507171');
+INSERT INTO public.competition_brackets (id, event_id, total_rounds, created_at) VALUES ('cf3e98cb-ba75-4e4e-a53e-16e1a1026da4', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 1, '2026-01-20 00:08:58.762084');
+INSERT INTO public.competition_brackets (id, event_id, total_rounds, created_at) VALUES ('f29a9fae-6984-4697-8cc4-b5c0b2968765', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 1, '2026-01-20 00:27:20.774899');
+INSERT INTO public.competition_brackets (id, event_id, total_rounds, created_at) VALUES ('d1d2c97f-33b5-4592-9eee-852ba6dcaefa', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 4, '2026-01-21 10:04:00.644813');
+
+
+--
+-- Data for Name: competition_matches; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('62ddbd9e-9129-4503-ae54-1a621164fac9', 'eae946d7-ebfd-4958-ae5e-a8c5274d63e0', 5, '4bddd2e8-ffe8-49e7-812b-80eda4b82d4e', 'c345784c-92a7-40bc-83be-4646cfecddcf', NULL, NULL, NULL, '2026-01-13 22:09:08.205235', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('6c327ed4-2349-4b0e-8c01-5653a5bdf0cc', 'eae946d7-ebfd-4958-ae5e-a8c5274d63e0', 6, '36a09e6b-0e56-4c51-8400-98d0e4f11e48', '4b72f826-0f15-4d59-8113-b505e2c4e103', NULL, NULL, NULL, '2026-01-13 22:09:08.207346', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('3d628cc3-13c4-4df3-9b18-afcf62b67583', 'eae946d7-ebfd-4958-ae5e-a8c5274d63e0', 7, '9d973b75-fca5-4464-bec7-e0a32c4f0276', '13c6d043-5b6b-4722-8848-f3701a465426', NULL, NULL, NULL, '2026-01-13 22:09:08.209363', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('1ab4683c-9617-4b45-97d9-d5905345157c', 'eae946d7-ebfd-4958-ae5e-a8c5274d63e0', 8, 'fde3af86-11f2-4e58-8f09-4938a1c0a92b', 'ed890b57-298b-45db-ad05-593985316b79', NULL, NULL, NULL, '2026-01-13 22:09:08.212172', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('9d5dffc7-962b-425d-9d6c-bcc596e08e77', 'b8dcc567-f3b7-4569-a537-ddee6eb55e6f', 3, NULL, NULL, NULL, NULL, NULL, '2026-01-13 22:09:08.22129', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('1d777a62-d33b-4000-8c22-d3e47350e54f', 'b8dcc567-f3b7-4569-a537-ddee6eb55e6f', 4, NULL, NULL, NULL, NULL, NULL, '2026-01-13 22:09:08.223944', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('a241ac33-76b5-4636-8c51-c1402f650806', '588a11af-19ec-48cd-bfa6-19720843d4dc', 2, NULL, NULL, NULL, NULL, NULL, '2026-01-13 22:09:08.231193', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('b7bacc29-15a3-4f12-aef9-48b43508bd04', 'e94f7bc0-3192-4af9-9c4c-d863503df592', 4, '93e65b73-54bd-44ee-93ef-6a3cbdc81e08', '3e096db8-6f0e-4838-9042-c2cba37f0361', '93e65b73-54bd-44ee-93ef-6a3cbdc81e08', NULL, NULL, '2026-01-13 23:07:08.031466', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('440fe1a1-61cf-45bc-9869-a6a1a9fd1ffb', 'e94f7bc0-3192-4af9-9c4c-d863503df592', 3, '0c9c5df9-745f-4060-80e8-645cf0b9295e', 'ecddface-b03f-4d54-be1b-e42057b661fe', '0c9c5df9-745f-4060-80e8-645cf0b9295e', NULL, NULL, '2026-01-13 23:07:08.027661', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('1f10a312-a5d5-491f-b766-0d8ef0bdc70d', 'e94f7bc0-3192-4af9-9c4c-d863503df592', 2, '5c92a375-5d3b-4567-8b68-4b31c3695b20', '3209b7ff-6d1a-4937-82ba-d4b963c23069', '5c92a375-5d3b-4567-8b68-4b31c3695b20', NULL, NULL, '2026-01-13 23:07:08.023816', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('807bda07-792c-4b31-b5e1-62ea2d711aa3', 'e94f7bc0-3192-4af9-9c4c-d863503df592', 1, '17dd2f84-dc1d-4040-965b-356e384933da', '0bdfb556-3798-40b8-ad56-d2886eeba945', '17dd2f84-dc1d-4040-965b-356e384933da', NULL, NULL, '2026-01-13 23:07:08.020211', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('0246a526-fdf4-467c-9e6e-84437599c646', '3afc62af-c2cb-47d6-8a1e-31a607dee05a', 1, 'd4242b8e-d2b8-4778-a993-e64537a38571', NULL, NULL, NULL, NULL, '2026-01-13 22:09:08.235234', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('b25c3e67-4fb9-4204-94c3-022858c3cc33', 'eae946d7-ebfd-4958-ae5e-a8c5274d63e0', 1, 'd4242b8e-d2b8-4778-a993-e64537a38571', '23d7828f-9766-4f04-8be6-86cb1a72b9e1', 'd4242b8e-d2b8-4778-a993-e64537a38571', NULL, NULL, '2026-01-13 22:09:08.194139', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('9e872224-d0be-48e9-b701-6e59ee4935dd', 'eae946d7-ebfd-4958-ae5e-a8c5274d63e0', 2, '2951c048-e6df-4c20-b080-adfb56de4a6b', '422f1463-14d9-4169-aa8a-b8c3419570af', '2951c048-e6df-4c20-b080-adfb56de4a6b', NULL, NULL, '2026-01-13 22:09:08.196989', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('7c51638f-bc96-4791-b826-c2cd0423ba91', 'b8dcc567-f3b7-4569-a537-ddee6eb55e6f', 1, 'd4242b8e-d2b8-4778-a993-e64537a38571', '2951c048-e6df-4c20-b080-adfb56de4a6b', NULL, NULL, NULL, '2026-01-13 22:09:08.216872', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('bb957f0a-e098-4627-882c-69742501c34c', 'eae946d7-ebfd-4958-ae5e-a8c5274d63e0', 3, '51562f95-92c3-4f4e-8048-38a0e5241ef3', 'ab19fec5-dcec-46c5-8ef9-3efab49fc207', '51562f95-92c3-4f4e-8048-38a0e5241ef3', NULL, NULL, '2026-01-13 22:09:08.199873', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('1861e520-9e73-448b-ab9c-259913234ec9', 'eae946d7-ebfd-4958-ae5e-a8c5274d63e0', 4, '08c40117-bb0d-4533-b73e-d6cd9f97f616', '6d640527-d6ee-4cd0-8093-b53dc6846caf', '6d640527-d6ee-4cd0-8093-b53dc6846caf', NULL, NULL, '2026-01-13 22:09:08.202938', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('b05fd7ee-811a-4f3c-820f-e74cf4d1f87a', 'b8dcc567-f3b7-4569-a537-ddee6eb55e6f', 2, '51562f95-92c3-4f4e-8048-38a0e5241ef3', '6d640527-d6ee-4cd0-8093-b53dc6846caf', '51562f95-92c3-4f4e-8048-38a0e5241ef3', NULL, NULL, '2026-01-13 22:09:08.218933', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('42d05bcf-01a5-4ed7-b743-fcfc9c669bc7', '588a11af-19ec-48cd-bfa6-19720843d4dc', 1, NULL, '51562f95-92c3-4f4e-8048-38a0e5241ef3', NULL, NULL, NULL, '2026-01-13 22:09:08.2284', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('0fcc61b3-a8a8-4c9f-bb40-fd47ecc03537', 'e94f7bc0-3192-4af9-9c4c-d863503df592', 5, '30a3336b-f4a1-4fab-8b0e-d0374496e181', '65a1efb8-56ef-43a8-bb4a-46cc640447e5', NULL, NULL, NULL, '2026-01-13 23:07:08.034309', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('e60c920b-c624-41d0-b4bf-f732109ee97d', 'e94f7bc0-3192-4af9-9c4c-d863503df592', 6, '08032dfe-70a3-4561-abf1-e5d9b7996fbf', 'ac8f4985-8e01-4f26-806f-9b3a3b65d5b2', NULL, NULL, NULL, '2026-01-13 23:07:08.037881', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('8fedb87a-b278-479e-a85e-97fa74575958', 'e94f7bc0-3192-4af9-9c4c-d863503df592', 7, '7c62c77b-02bb-4642-8430-fa8f8f6f8b94', '38f2647b-c696-4755-a198-1d20a39b650b', NULL, NULL, NULL, '2026-01-13 23:07:08.04087', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('abe19f1a-9752-4c43-9bf5-aa9f6e75283e', 'e94f7bc0-3192-4af9-9c4c-d863503df592', 8, '7bd4ede2-3495-4970-b44a-0e16cd8f91ff', '69b5c9d9-3d42-493c-8219-4f278015de9d', NULL, NULL, NULL, '2026-01-13 23:07:08.043753', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('529e7ec6-c9bb-439b-861d-5eac5cc43bc6', '942859d7-3240-488b-a693-d66a6f178505', 3, NULL, NULL, NULL, NULL, NULL, '2026-01-13 23:07:08.068411', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('b70b13d2-36ed-4807-a64a-47630a048ce0', '942859d7-3240-488b-a693-d66a6f178505', 4, NULL, NULL, NULL, NULL, NULL, '2026-01-13 23:07:08.071384', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('8c5f22f8-f27c-46b3-a4d0-2fa4a046a2ed', '8e1b5233-f8ce-47d8-a5bd-28102571a68f', 2, NULL, NULL, NULL, NULL, NULL, '2026-01-13 23:07:08.083101', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('a7285518-bf4a-494a-a120-39e5aefea023', 'f9df27a7-f5bd-4d54-9bd0-2e98ca3434eb', 1, NULL, NULL, NULL, NULL, NULL, '2026-01-13 23:07:08.087949', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('4585ab42-a536-4eea-8a78-cecb1ab6b7ef', 'dcb488f7-5f96-45fb-9e7f-fb17d85fd43c', 1, 'b97f8183-5311-44d0-bfb6-d6351435b504', 'e8da9b6a-984c-462a-af04-6fdb4224e46d', 'b97f8183-5311-44d0-bfb6-d6351435b504', NULL, NULL, '2026-01-14 22:22:13.064811', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('f0f7ba3c-c5bc-4021-b60f-205b5eec01e6', '942859d7-3240-488b-a693-d66a6f178505', 2, '0c9c5df9-745f-4060-80e8-645cf0b9295e', '93e65b73-54bd-44ee-93ef-6a3cbdc81e08', NULL, NULL, NULL, '2026-01-13 23:07:08.056252', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('ed964a22-d5a4-4568-a3c1-db2beae4df12', '455da59c-64b3-424c-870d-958b49d85a72', 3, 'a4c5c8b6-8b3f-468b-af25-77480224b1a7', '6d6f16a4-5b2b-4119-919f-eb67ea03bb87', NULL, NULL, NULL, '2026-01-15 16:33:31.548912', '6d6f16a4-5b2b-4119-919f-eb67ea03bb87', '6d6f16a4-5b2b-4119-919f-eb67ea03bb87', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('9b556406-3161-41cb-a7e2-78c85c08362e', 'dcb488f7-5f96-45fb-9e7f-fb17d85fd43c', 2, 'b6b69d47-9bdd-4d48-9bcb-8c066030cb7a', 'a00de14e-c305-4b12-a640-408d7629ad2c', 'a00de14e-c305-4b12-a640-408d7629ad2c', NULL, NULL, '2026-01-14 22:22:13.071096', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('cac0492d-36ab-4903-a4a8-ec24b57a9a52', '942859d7-3240-488b-a693-d66a6f178505', 1, '17dd2f84-dc1d-4040-965b-356e384933da', '5c92a375-5d3b-4567-8b68-4b31c3695b20', '5c92a375-5d3b-4567-8b68-4b31c3695b20', NULL, NULL, '2026-01-13 23:07:08.053384', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('ed3e39d2-f143-4700-b5cf-e7d78ceb34a9', '8e1b5233-f8ce-47d8-a5bd-28102571a68f', 1, '5c92a375-5d3b-4567-8b68-4b31c3695b20', NULL, NULL, NULL, NULL, '2026-01-13 23:07:08.080081', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('a5140baf-3838-4835-aaef-1b43642455ed', 'a0da746d-8611-454b-be4a-85b5953de8ad', 1, 'af4fee40-74ff-4590-b48d-df2ec8a23828', '3346b98f-1300-4189-8f4a-a082cc569062', 'af4fee40-74ff-4590-b48d-df2ec8a23828', NULL, NULL, '2026-01-14 16:11:16.781261', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('3411de4b-18f4-4a8c-bb9b-d30056b552d9', 'b7878277-8b43-4310-aa7c-5a260bf50173', 1, 'b97f8183-5311-44d0-bfb6-d6351435b504', 'a00de14e-c305-4b12-a640-408d7629ad2c', NULL, NULL, NULL, '2026-01-14 22:22:13.084762', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('8c3fe6f5-74b2-4e03-b9a1-a4d8a9f66bd4', 'a0da746d-8611-454b-be4a-85b5953de8ad', 2, '548d8b68-e0a6-4d8f-8db6-c44b9e689184', '952964e7-f5f6-40fd-9e0e-6d02eff5eb4b', '548d8b68-e0a6-4d8f-8db6-c44b9e689184', NULL, NULL, '2026-01-14 16:11:16.790308', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('7db36eeb-153c-4e7a-ae14-ba7fccf3cc9b', '7efe62b3-e8be-48e2-aadd-147495e21f34', 1, '699d7725-db1b-48f5-a6ab-c708a91e089d', 'ef0d6e75-81a0-4a89-b028-7eedf5ab5063', NULL, NULL, NULL, '2026-01-14 22:34:28.258522', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('116ad187-db7d-428f-9db6-8a856873a3c9', '7efe62b3-e8be-48e2-aadd-147495e21f34', 2, 'b4fa0aa2-733c-4b0e-a1a5-e6cefd785bc1', 'f5931456-43f6-4c51-ae0e-7c603e4ef26f', NULL, NULL, NULL, '2026-01-14 22:34:28.261298', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('2d72a345-f77d-4266-a4e0-ab3013990ed7', '64de4e5b-9a36-4e94-9e9d-dfa3738955ea', 1, 'af4fee40-74ff-4590-b48d-df2ec8a23828', '548d8b68-e0a6-4d8f-8db6-c44b9e689184', 'af4fee40-74ff-4590-b48d-df2ec8a23828', NULL, NULL, '2026-01-14 16:11:16.805455', 'af4fee40-74ff-4590-b48d-df2ec8a23828', 'af4fee40-74ff-4590-b48d-df2ec8a23828', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', '2026-01-14 21:47:42.38');
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('b27dc6bd-8874-450c-a17b-6f78822eca1c', '7efe62b3-e8be-48e2-aadd-147495e21f34', 3, '12723bf2-104c-48bb-a6e7-5d9813fb65d2', 'c02fe703-e68b-41d2-8960-efbcc52624bd', NULL, NULL, NULL, '2026-01-14 22:34:28.264503', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('58f78ba3-5ce5-4e31-977a-7d44b6e84ade', 'a0da746d-8611-454b-be4a-85b5953de8ad', 4, '6d86204e-fb2e-4e21-a2d0-e2394bc6fbb8', 'b8b6d3b3-e19f-4582-917e-eecba0e44c47', 'b8b6d3b3-e19f-4582-917e-eecba0e44c47', NULL, NULL, '2026-01-14 16:11:16.798846', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('958dba80-a7ac-4152-93fc-05ff9e29b99e', '7efe62b3-e8be-48e2-aadd-147495e21f34', 4, 'f540d3af-1c70-4823-be28-ab98c715f537', '8f03d6fe-480a-4086-800a-1195132355a4', NULL, NULL, NULL, '2026-01-14 22:34:28.267219', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('d15b91bd-855e-40fe-8c7c-50e125a818e7', 'a0da746d-8611-454b-be4a-85b5953de8ad', 3, '39ac8e1c-d281-4559-9cf3-67fa8e333518', '6c75f3c6-2b62-4c0c-a6b6-1d03bfb431a3', '6c75f3c6-2b62-4c0c-a6b6-1d03bfb431a3', NULL, NULL, '2026-01-14 16:11:16.793719', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('fc3cd902-35e4-4d67-9ab2-18420b8c1a7e', '510a0e30-bce0-40f0-8f80-6f589548b797', 1, NULL, NULL, NULL, NULL, NULL, '2026-01-14 22:34:28.272308', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('91086df1-f706-4e1d-8996-49ebc8c5ef8b', '64de4e5b-9a36-4e94-9e9d-dfa3738955ea', 2, '6c75f3c6-2b62-4c0c-a6b6-1d03bfb431a3', 'b8b6d3b3-e19f-4582-917e-eecba0e44c47', '6c75f3c6-2b62-4c0c-a6b6-1d03bfb431a3', NULL, NULL, '2026-01-14 16:11:16.80901', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('f29d28e0-4eeb-46d1-91ef-a468ffe8c048', '48b6b130-7a6c-44ca-a31e-098d43343b82', 1, 'af4fee40-74ff-4590-b48d-df2ec8a23828', '6c75f3c6-2b62-4c0c-a6b6-1d03bfb431a3', NULL, NULL, NULL, '2026-01-14 16:11:16.815422', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('4c356f47-0626-457d-8a67-ef9bc08c6c0f', 'dcb488f7-5f96-45fb-9e7f-fb17d85fd43c', 3, '1b75675d-0621-4ef5-9592-4269acdf2477', 'd202ab82-8ac5-4a04-9fb0-1a9047e8ce3f', NULL, NULL, NULL, '2026-01-14 22:22:13.074447', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('6cf7753b-4a18-4f9e-9740-afda5d20fe33', 'dcb488f7-5f96-45fb-9e7f-fb17d85fd43c', 4, 'ee359767-1418-40c5-a912-453ee5b0a8fb', 'aa456381-95c6-48ef-b188-d13755111020', NULL, NULL, NULL, '2026-01-14 22:22:13.078039', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('06ce6f19-4930-47f5-881a-3026a9b0d72b', 'b7878277-8b43-4310-aa7c-5a260bf50173', 2, NULL, NULL, NULL, NULL, NULL, '2026-01-14 22:22:13.087966', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('a580bc2b-3537-4883-84de-b11f77d2b0bc', 'ec902a25-6c5e-47a4-ad3c-5a4b4c4fc004', 1, NULL, NULL, NULL, NULL, NULL, '2026-01-14 22:22:13.09581', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('05fedef7-e4fe-4e05-9c32-abd35bea35f3', '510a0e30-bce0-40f0-8f80-6f589548b797', 2, NULL, NULL, NULL, NULL, NULL, '2026-01-14 22:34:28.275969', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('9dd20e46-9d8c-43c9-892e-fea48f68debb', '2d213fb9-69d8-448c-bcd2-9391bc461a7a', 1, NULL, NULL, NULL, NULL, NULL, '2026-01-14 22:34:28.282775', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('0136a446-8425-4f2a-9cc9-84234f263871', '455da59c-64b3-424c-870d-958b49d85a72', 4, '084393cf-8418-4561-a313-c7b016ec7275', 'c433242c-bb16-43f0-aae5-7e0d8a385f10', NULL, NULL, NULL, '2026-01-15 16:33:31.55307', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('009c67a0-68b1-4f50-bad6-35a199f8a5cb', '4da65319-7401-4ec6-a18b-295b85b2862e', 2, NULL, NULL, NULL, NULL, NULL, '2026-01-15 16:33:31.56466', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('6dd3d301-6722-4843-9229-ad2c70c70fcf', '6ca5bcbf-7e26-417f-a6e6-19b8ed3008e7', 1, NULL, NULL, NULL, NULL, NULL, '2026-01-15 16:33:31.572083', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('485d2423-1c88-4053-8dae-6bb66533898a', '455da59c-64b3-424c-870d-958b49d85a72', 1, '6b1558a0-9a49-4c4b-b239-7c4242c12c05', 'c04e841d-1072-4a28-bc08-4254a9d007ff', '6b1558a0-9a49-4c4b-b239-7c4242c12c05', NULL, NULL, '2026-01-15 16:33:31.536229', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('cb587770-f033-4952-9229-906efd0d40d8', '455da59c-64b3-424c-870d-958b49d85a72', 2, 'b08dc2a4-1277-44bc-a82f-a4b9b05d168a', '9d2a40c3-57f1-43af-9116-f4f391369aef', '9d2a40c3-57f1-43af-9116-f4f391369aef', NULL, NULL, '2026-01-15 16:33:31.544894', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('7bc2e898-f576-459e-899c-c8734f9fa7ce', '4da65319-7401-4ec6-a18b-295b85b2862e', 1, '6b1558a0-9a49-4c4b-b239-7c4242c12c05', '9d2a40c3-57f1-43af-9116-f4f391369aef', NULL, NULL, NULL, '2026-01-15 16:33:31.560638', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('42cbe23d-caad-4dfa-99b2-993d467ca9bd', '0e26a676-5efa-45ba-b3e0-861fa613a860', 2, 'ac0830db-b903-41f2-a2f9-9e5687119df0', '38b38223-3b97-46c5-a3f0-53bb167935ca', NULL, NULL, NULL, '2026-01-20 00:08:58.791968', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('786366ad-6343-4b85-b149-b6e8da0adff1', '0e26a676-5efa-45ba-b3e0-861fa613a860', 3, 'a915cf7c-6878-4415-897f-523341efff5c', '38b89c68-f040-4d26-a2e0-08f49e1bb67c', NULL, NULL, NULL, '2026-01-20 00:08:58.795724', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('60f04615-636b-499b-9bb5-f9751d4d1264', '0e26a676-5efa-45ba-b3e0-861fa613a860', 4, 'a0fe304b-bc45-4ed7-a744-f1166ac3902b', 'e87d7f7f-eef5-49ed-8ee0-5314f6cecac7', NULL, NULL, NULL, '2026-01-20 00:08:58.799235', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('72f83f73-8c93-4742-a1e3-ac7ee9f0684b', '0e26a676-5efa-45ba-b3e0-861fa613a860', 5, '7b01ff30-f8ef-4d35-a925-958b771f8c14', '2146b342-9d6a-4c0d-a222-8f9794e4005c', NULL, NULL, NULL, '2026-01-20 00:08:58.803604', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('10c7a254-be5a-4855-afe4-22d055277bed', '0e26a676-5efa-45ba-b3e0-861fa613a860', 1, '13aa22f9-ffee-40bd-9463-187148665f2a', '47057c46-42ec-49a9-9afb-379b9338e0dc', '47057c46-42ec-49a9-9afb-379b9338e0dc', NULL, NULL, '2026-01-20 00:08:58.784534', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('3845595a-4b4e-4d17-89e3-5f4a6675fda5', '08a5105d-4212-4314-a750-64facd2f6c0e', 1, '9a324c3a-c2ca-4870-9dd8-a49e76f05f7c', '6b8dc355-cdba-4e69-bf96-8b70dedf6fd0', NULL, NULL, NULL, '2026-01-20 00:27:20.823397', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('f33833dd-278e-4ff3-a2f5-7834bc20e667', '08a5105d-4212-4314-a750-64facd2f6c0e', 2, 'b929d40e-1bb6-4c59-bfba-0d663c56cc78', '8060a9c8-90e9-4d04-86ca-6ea1ee580e28', NULL, NULL, NULL, '2026-01-20 00:27:20.827458', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('e7102f88-ff9b-43cd-bc99-8a42b4b978a8', '08a5105d-4212-4314-a750-64facd2f6c0e', 3, '5b806cc7-520a-4472-a8a0-5a818cc3247b', '1f82c757-460f-4fdf-b1b0-019688c6f23d', NULL, NULL, NULL, '2026-01-20 00:27:20.830872', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('c7bbbcd9-e5cd-4cc9-8d2b-f0b678295c97', '08a5105d-4212-4314-a750-64facd2f6c0e', 4, 'b74d1e43-ce72-4e29-b8d8-2c8d310c8004', '986e8b58-b3fd-448b-8fea-ed96c3d84604', NULL, NULL, NULL, '2026-01-20 00:27:20.833991', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('7b453116-81d1-44e1-983f-2bfbb883b93a', 'd7e0f34d-9f3a-450d-9caf-f9fb59a5f250', 1, '299f531d-21de-4141-857a-11c5bbed23e9', '7f6d64de-f3a2-47a3-b256-f01a52a9a6cb', '299f531d-21de-4141-857a-11c5bbed23e9', NULL, NULL, '2026-01-21 10:04:00.713769', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('30314128-8bf8-417d-9376-f0c658b0b213', 'd7e0f34d-9f3a-450d-9caf-f9fb59a5f250', 7, '29a3d5d1-8b94-4c2b-b696-ff2d7033cdfa', '92ea1636-6c3d-41de-9c27-82f2bc2492a9', '29a3d5d1-8b94-4c2b-b696-ff2d7033cdfa', NULL, NULL, '2026-01-21 10:04:00.732837', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('a1451674-b692-498f-8a6b-3aafee816645', 'd7e0f34d-9f3a-450d-9caf-f9fb59a5f250', 2, '3ef364e1-47ce-4340-8e86-c69837a3b33e', '727d8c7c-7ce4-4b9c-9727-81051cc733aa', '3ef364e1-47ce-4340-8e86-c69837a3b33e', NULL, NULL, '2026-01-21 10:04:00.719231', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('6ed2a880-e129-45f9-a0f3-5d3572194d89', 'cb9b4d34-7b4c-4004-a775-7dc9d12d7919', 1, '299f531d-21de-4141-857a-11c5bbed23e9', '3ef364e1-47ce-4340-8e86-c69837a3b33e', '299f531d-21de-4141-857a-11c5bbed23e9', NULL, NULL, '2026-01-21 10:04:00.7407', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('def2d8b3-639e-405f-990a-1fabe3576b83', 'd7e0f34d-9f3a-450d-9caf-f9fb59a5f250', 8, 'b0b3d510-67ff-4505-a4ed-51626b64b44c', '97dfe530-a211-457a-b27a-e5377d06629f', '97dfe530-a211-457a-b27a-e5377d06629f', NULL, NULL, '2026-01-21 10:04:00.735387', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('0da6928d-2b89-4c3f-9d9c-cf455e481541', 'd7e0f34d-9f3a-450d-9caf-f9fb59a5f250', 3, '27c50926-455c-482f-9e0c-c3c12b3f3925', '619e543c-1875-4873-a4f4-e390c95e40df', '27c50926-455c-482f-9e0c-c3c12b3f3925', NULL, NULL, '2026-01-21 10:04:00.721921', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('63fa7a4d-01f1-4982-9446-70b6f33af135', 'd7e0f34d-9f3a-450d-9caf-f9fb59a5f250', 4, '4a154a26-35d3-41df-86f5-b14609db0725', 'd118e746-dd44-42d4-abd3-60057930a375', '4a154a26-35d3-41df-86f5-b14609db0725', NULL, NULL, '2026-01-21 10:04:00.724534', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('0f03b872-80ac-42bd-949f-059db3f74a67', 'cb9b4d34-7b4c-4004-a775-7dc9d12d7919', 4, '29a3d5d1-8b94-4c2b-b696-ff2d7033cdfa', '97dfe530-a211-457a-b27a-e5377d06629f', '29a3d5d1-8b94-4c2b-b696-ff2d7033cdfa', NULL, NULL, '2026-01-21 10:04:00.748672', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('a697c56f-d11a-4699-a298-a73385485719', 'cb9b4d34-7b4c-4004-a775-7dc9d12d7919', 2, '27c50926-455c-482f-9e0c-c3c12b3f3925', '4a154a26-35d3-41df-86f5-b14609db0725', '27c50926-455c-482f-9e0c-c3c12b3f3925', NULL, NULL, '2026-01-21 10:04:00.743443', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('0d43b4f7-4c91-42a7-a0da-0d8a90b20801', '6d3fc40a-0781-4798-a8e3-5e962c74ab60', 1, '299f531d-21de-4141-857a-11c5bbed23e9', '27c50926-455c-482f-9e0c-c3c12b3f3925', '299f531d-21de-4141-857a-11c5bbed23e9', NULL, NULL, '2026-01-21 10:04:00.753461', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('3888995c-03b7-4487-9a85-803a9a41b182', 'd7e0f34d-9f3a-450d-9caf-f9fb59a5f250', 5, '56105eb5-0d7f-42a7-a676-287043ab7574', 'dbcccd87-34a6-4bf6-844e-851a08d168be', '56105eb5-0d7f-42a7-a676-287043ab7574', NULL, NULL, '2026-01-21 10:04:00.726339', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('b107f786-e04f-4073-8d6b-1f672437ee73', 'cb9b4d34-7b4c-4004-a775-7dc9d12d7919', 3, '56105eb5-0d7f-42a7-a676-287043ab7574', '609233f8-c698-4bef-8d80-776634de96ac', '609233f8-c698-4bef-8d80-776634de96ac', NULL, NULL, '2026-01-21 10:04:00.746106', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('ef4231f0-617c-42c9-972e-4fd15631a59b', 'd7e0f34d-9f3a-450d-9caf-f9fb59a5f250', 6, '609233f8-c698-4bef-8d80-776634de96ac', '61a5c832-a4f2-4827-a526-c917cdc4eb7a', '609233f8-c698-4bef-8d80-776634de96ac', NULL, NULL, '2026-01-21 10:04:00.729036', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('22bf1e3d-ca75-466c-9f18-766f80e9071a', '6d3fc40a-0781-4798-a8e3-5e962c74ab60', 2, '609233f8-c698-4bef-8d80-776634de96ac', '29a3d5d1-8b94-4c2b-b696-ff2d7033cdfa', '609233f8-c698-4bef-8d80-776634de96ac', NULL, NULL, '2026-01-21 10:04:00.756402', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_matches (id, round_id, match_number, team1_id, team2_id, winner_id, score1, score2, created_at, result_submitted_by_team_id, proposed_winner_id, result_submitted_by_user_id, result_confirmed_by_user_id, result_confirmed_at) VALUES ('1b784c14-eca9-4a4a-b5f8-c1811de061b4', '6d2dd2e4-40ab-47ce-bec0-821216bc5094', 1, '299f531d-21de-4141-857a-11c5bbed23e9', '609233f8-c698-4bef-8d80-776634de96ac', NULL, NULL, NULL, '2026-01-21 10:04:00.76187', NULL, NULL, NULL, NULL, NULL);
+
+
+--
+-- Data for Name: competition_rounds; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('588a11af-19ec-48cd-bfa6-19720843d4dc', '16ae1428-5434-4305-8ccf-af50be01666e', 3, 'Semi-Final', NULL, '2026-01-13 22:09:08.226246');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('3afc62af-c2cb-47d6-8a1e-31a607dee05a', '16ae1428-5434-4305-8ccf-af50be01666e', 4, 'Final', NULL, '2026-01-13 22:09:08.233182');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('eae946d7-ebfd-4958-ae5e-a8c5274d63e0', '16ae1428-5434-4305-8ccf-af50be01666e', 1, 'Round 1', '2026-01-28 00:00:00', '2026-01-13 22:09:08.190957');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('b8dcc567-f3b7-4569-a537-ddee6eb55e6f', '16ae1428-5434-4305-8ccf-af50be01666e', 2, 'Quarter-Final', '2026-02-10 00:00:00', '2026-01-13 22:09:08.214326');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('942859d7-3240-488b-a693-d66a6f178505', '47174f88-73bd-45cf-ade0-e502953c83e6', 2, 'Quarter-Final', NULL, '2026-01-13 23:07:08.048199');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('8e1b5233-f8ce-47d8-a5bd-28102571a68f', '47174f88-73bd-45cf-ade0-e502953c83e6', 3, 'Semi-Final', NULL, '2026-01-13 23:07:08.075989');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('f9df27a7-f5bd-4d54-9bd0-2e98ca3434eb', '47174f88-73bd-45cf-ade0-e502953c83e6', 4, 'Final', NULL, '2026-01-13 23:07:08.085446');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('e94f7bc0-3192-4af9-9c4c-d863503df592', '47174f88-73bd-45cf-ade0-e502953c83e6', 1, 'Round 1', '2026-01-25 00:00:00', '2026-01-13 23:07:08.014029');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('a0da746d-8611-454b-be4a-85b5953de8ad', '985f3743-6145-4607-ba05-4d5029996298', 1, 'Quarter-Final', NULL, '2026-01-14 16:11:16.772856');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('64de4e5b-9a36-4e94-9e9d-dfa3738955ea', '985f3743-6145-4607-ba05-4d5029996298', 2, 'Semi-Final', NULL, '2026-01-14 16:11:16.8015');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('48b6b130-7a6c-44ca-a31e-098d43343b82', '985f3743-6145-4607-ba05-4d5029996298', 3, 'Final', NULL, '2026-01-14 16:11:16.812105');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('dcb488f7-5f96-45fb-9e7f-fb17d85fd43c', 'ae27c95a-96df-4d9a-9579-d48f16de0c68', 1, 'Quarter-Final', NULL, '2026-01-14 22:22:13.061347');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('b7878277-8b43-4310-aa7c-5a260bf50173', 'ae27c95a-96df-4d9a-9579-d48f16de0c68', 2, 'Semi-Final', NULL, '2026-01-14 22:22:13.081558');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('ec902a25-6c5e-47a4-ad3c-5a4b4c4fc004', 'ae27c95a-96df-4d9a-9579-d48f16de0c68', 3, 'Final', NULL, '2026-01-14 22:22:13.092597');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('7efe62b3-e8be-48e2-aadd-147495e21f34', 'd8737a88-6ca2-473c-b497-36f2ec2f9730', 1, 'Quarter-Final', NULL, '2026-01-14 22:34:28.255249');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('510a0e30-bce0-40f0-8f80-6f589548b797', 'd8737a88-6ca2-473c-b497-36f2ec2f9730', 2, 'Semi-Final', NULL, '2026-01-14 22:34:28.269773');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('2d213fb9-69d8-448c-bcd2-9391bc461a7a', 'd8737a88-6ca2-473c-b497-36f2ec2f9730', 3, 'Final', NULL, '2026-01-14 22:34:28.279583');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('455da59c-64b3-424c-870d-958b49d85a72', '8ed7a14f-e44c-4dbc-a4aa-a7a0e4c887be', 1, 'Quarter-Final', NULL, '2026-01-15 16:33:31.526252');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('4da65319-7401-4ec6-a18b-295b85b2862e', '8ed7a14f-e44c-4dbc-a4aa-a7a0e4c887be', 2, 'Semi-Final', NULL, '2026-01-15 16:33:31.556861');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('6ca5bcbf-7e26-417f-a6e6-19b8ed3008e7', '8ed7a14f-e44c-4dbc-a4aa-a7a0e4c887be', 3, 'Final', NULL, '2026-01-15 16:33:31.568499');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('0e26a676-5efa-45ba-b3e0-861fa613a860', 'cf3e98cb-ba75-4e4e-a53e-16e1a1026da4', 1, 'Competition Matches', NULL, '2026-01-20 00:08:58.777826');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('08a5105d-4212-4314-a750-64facd2f6c0e', 'f29a9fae-6984-4697-8cc4-b5c0b2968765', 1, 'Competition Matches', NULL, '2026-01-20 00:27:20.810383');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('d7e0f34d-9f3a-450d-9caf-f9fb59a5f250', 'd1d2c97f-33b5-4592-9eee-852ba6dcaefa', 1, 'Round 1', NULL, '2026-01-21 10:04:00.708695');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('cb9b4d34-7b4c-4004-a775-7dc9d12d7919', 'd1d2c97f-33b5-4592-9eee-852ba6dcaefa', 2, 'Quarter-Final', NULL, '2026-01-21 10:04:00.738217');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('6d3fc40a-0781-4798-a8e3-5e962c74ab60', 'd1d2c97f-33b5-4592-9eee-852ba6dcaefa', 3, 'Semi-Final', NULL, '2026-01-21 10:04:00.751293');
+INSERT INTO public.competition_rounds (id, bracket_id, round_number, round_name, deadline, created_at) VALUES ('6d2dd2e4-40ab-47ce-bec0-821216bc5094', 'd1d2c97f-33b5-4592-9eee-852ba6dcaefa', 4, 'Final', NULL, '2026-01-21 10:04:00.758952');
+
+
+--
+-- Data for Name: competition_teams; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('468266cd-8e8f-4914-a0f4-c53eff37804e', '63d141bb-f8a4-4836-b77f-17649410356b', 2, 'd6134768-957b-4f26-99d1-76baef2efd61:0', 'f0dd81cb-ef92-4be0-8c95-0c300ea6b94c:0', '2026-02-27 09:57:23.00719', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('ea4e6bde-eafe-4927-88bb-be5566ba5d6b', '63d141bb-f8a4-4836-b77f-17649410356b', 3, 'ef4e67a5-ceb0-4576-bce1-0db98a217fdb:0', '6c46b212-a8a8-42ec-99b8-f221bb19de96:0', '2026-02-27 09:57:23.010857', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('d52d3e76-e8aa-4602-a863-63838ef706ac', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 4, '45f654e9-2606-45c6-bd29-a59cd36bb87a:0', 'c42a4274-6ced-4006-9beb-3e9f47787016:0', '2026-02-25 11:41:27.808672', 'b19df76a-1122-4e10-b079-177d371c111c:0', '253ff9e4-744e-4c0d-ab7c-afd8959855ac:1', NULL, NULL, NULL, '10:30', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('3727fb31-c50c-4fe0-a597-7513252f7f1c', '63d141bb-f8a4-4836-b77f-17649410356b', 4, 'a2bc90de-4d2a-44c1-80e3-1d4d1788d0dc:0', '93c7f2d6-00b3-4d67-8170-1005b5992f15:0', '2026-02-27 09:57:23.014249', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('6ddabe15-4c10-4d07-adc5-e70d4df96f22', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 6, 'ce50bbe1-5154-4922-bf9a-84af33d089cf:0', '26a16f64-580f-4659-95c6-721ff7237c5c:0', '2026-02-25 11:41:27.81379', '94f695c6-535f-4d40-baff-ed838b9b8ec0:0', '714598c2-be4d-4665-896e-0bd9c7ba18d4:0', NULL, NULL, NULL, '10:50', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('a0dde00a-e421-4f0b-ac72-df25a7f87cd9', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 7, '80c4cde7-c6c1-47c4-b3dd-f2b579d16c33:0', '5f956f95-4007-48d1-9b68-63051c419d8e:0', '2026-02-25 11:41:27.816558', 'ebcbc3a5-4e08-45bb-84b9-5f7620df1199:0', '2dea55c6-227a-47be-bc08-a509a6f8b96f:0', NULL, NULL, NULL, '11:00', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('4c10a32f-e5e7-4e67-9e83-62b39755129b', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 8, '2f7caa0a-f9d8-450f-b752-39045d02f6cc:0', '3267c822-ce2d-41ed-b94e-1ff54c9864b5:0', '2026-02-25 11:41:27.89218', '14a00c1a-1c70-4d72-bd7c-ef2b12a7a079:0', 'a08e01c9-c03c-4a44-ae3b-9ec7c83d0818:0', NULL, NULL, NULL, '11:10', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('30c6068d-87fe-4836-8066-1ce7fd43268e', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 1, '253ff9e4-744e-4c0d-ab7c-afd8959855ac:0', '1ae5268d-55ec-4d65-b786-34167d894d97:0', '2026-02-25 11:41:27.799406', '6a19680b-c459-465a-b385-8dadea1db18b:0', 'e6c9d579-d023-4fa0-9572-f9197ce9535a:0', NULL, NULL, 100, '10:00', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('c17acde3-17bb-438f-903a-2f2d4dd894dd', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 2, '253ff9e4-744e-4c0d-ab7c-afd8959855ac:2', '3ceaf8af-4eb0-4c55-9537-3ed90387ef31:0', '2026-02-25 11:41:27.804134', '3a39438e-33f3-4220-a4c0-8dc5e90611ee:0', '03a4df2a-e9aa-4358-9201-51cf61641947:0', NULL, NULL, 66, '10:10', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('a499cd08-7c0b-46a8-a6c6-2ca1b2bc8b54', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 3, '3ac75f06-cb15-4fbb-8c25-1f9a316b7dcf:0', '0b702b76-7892-4df9-b900-765a0182bc92:0', '2026-02-25 11:41:27.806426', '3a9491a8-b731-4365-aa1d-4ae9054d9d8f:0', '8af14bf4-04a1-44fa-8b48-ddfa1e66c69d:0', NULL, NULL, 89, '10:20', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('ad5f4bdb-e3bc-4c5e-9bf0-e376105ddcee', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 5, '59b54460-bcf8-468c-9c58-e19e30bf7ac1:0', '6d1e2a36-0f8d-481c-87ea-2467e3f0d067:0', '2026-02-25 11:41:27.811273', '253ff9e4-744e-4c0d-ab7c-afd8959855ac:3', 'cf25874b-3595-4129-8a54-91cba3bafe4b:0', NULL, NULL, 89, '10:40', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('bc799279-fcae-465d-bd92-ba325a06443d', '63d141bb-f8a4-4836-b77f-17649410356b', 5, 'ed4322b4-45f6-47c0-aeed-5c2d6b06d15d:0', '3c87204c-a6dc-4496-850a-a9319997b582:0', '2026-02-27 09:57:23.017815', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('c636df03-e99c-482c-a634-644e896334d2', '63d141bb-f8a4-4836-b77f-17649410356b', 6, 'dfb67062-14e6-477a-a201-a6ca3a5c5123:0', '2f9ffb11-6210-43e3-8113-e38de3884e82:0', '2026-02-27 09:57:23.020374', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('265f5d51-93cc-4261-82e6-3a6966c33fb8', '63d141bb-f8a4-4836-b77f-17649410356b', 7, 'ffaafcd0-ca87-45e2-b751-f69a6724a8bd:0', '45bd5278-031c-4274-8c79-818f8dd5a7b8:0', '2026-02-27 09:57:23.023337', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('1e3de6c0-567d-432a-a65b-451e047e0675', '63d141bb-f8a4-4836-b77f-17649410356b', 8, '6609ede9-6dc6-4f4b-bce5-4be4eff221d6:0', '1cce05d1-2820-4322-b436-2973a7eb8f02:0', '2026-02-27 09:57:23.026063', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('f9b5561f-a594-4467-8093-ca30d292c03f', '63d141bb-f8a4-4836-b77f-17649410356b', 9, '56879419-e79c-440a-b154-b5fa541b79a9:0', '4ab1c453-6377-448c-88e5-270a8fad4bfe:1', '2026-02-27 09:57:23.02928', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('64263e1e-c220-42a3-b13d-1340fe4771ea', '63d141bb-f8a4-4836-b77f-17649410356b', 10, 'c2fc7aa9-e004-4740-9895-f5d94443ab3a:0', '40623456-4c45-4d85-b563-6e4e21a9179e:0', '2026-02-27 09:57:23.032422', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('c66b8bf7-44cf-465f-850f-a21b289f1260', '63d141bb-f8a4-4836-b77f-17649410356b', 11, '23c6db72-3e39-4100-851c-622cbb652c9d:0', 'e6794d30-eb5f-40d3-b610-7931c1400bcd:0', '2026-02-27 09:57:23.035484', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('0ade41b2-548e-450c-8331-454d6acba046', '63d141bb-f8a4-4836-b77f-17649410356b', 12, '646c6d00-67e1-406d-9aa9-ed9c8c5746b6:0', '65378732-ef1e-440a-a3eb-c946aca1bc53:0', '2026-02-27 09:57:23.037478', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('41217b2c-0cb6-42f2-9436-dc0b9ef662e1', '63d141bb-f8a4-4836-b77f-17649410356b', 13, 'b5521493-8be3-48c4-a28a-a5fddbc9aca1:0', '4ab1c453-6377-448c-88e5-270a8fad4bfe:0', '2026-02-27 09:57:23.040674', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('71612838-9be0-4d71-b6f5-831f4aa1d39d', '63d141bb-f8a4-4836-b77f-17649410356b', 14, 'e4254156-13fe-4d75-964a-4f6fa6e726c4:0', '2dc38b9a-bb7c-4991-a123-f0a7cf2d1878:0', '2026-02-27 09:57:23.043282', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('7f5b86b8-c214-43a0-bd45-67ad1b4e2896', '63d141bb-f8a4-4836-b77f-17649410356b', 15, '6db524e2-6299-42c3-b23c-d18e9d70de85:0', '5438ecd1-ca7b-4cd5-bba0-d1912d10a287:0', '2026-02-27 09:57:23.045159', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('4cd0389e-b168-440f-a47a-82eae3e61352', '63d141bb-f8a4-4836-b77f-17649410356b', 16, '592334c7-a873-4ba3-a0af-2a4ba0874b5a:0', '17924aab-d802-4ce3-96c1-875111a46c6f:0', '2026-02-27 09:57:23.048353', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('d4242b8e-d2b8-4778-a993-e64537a38571', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 1, 'fb9af4d8-cfe2-416a-868f-eb0a6e86c98b', 'bab6e762-7a8e-462f-8eae-1d0c10443407', '2026-01-13 21:58:07.083169', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('23d7828f-9766-4f04-8be6-86cb1a72b9e1', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 2, '5954c150-99f2-405e-b6e5-73d8ea9b0c5d', 'e082f779-c77d-403e-826d-06bc9d7224db', '2026-01-13 21:58:07.087712', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('2951c048-e6df-4c20-b080-adfb56de4a6b', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 3, '387852e9-37b9-4438-9bb8-d8a80b9b6e12', '0282531f-9515-49ad-b08c-7ab353e4337a', '2026-01-13 21:58:07.092129', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('422f1463-14d9-4169-aa8a-b8c3419570af', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 4, '12a1dbfe-5c4e-467d-a61a-e6acc682432e', '94456b87-29c8-4896-b37b-cc9e1f424a21', '2026-01-13 21:58:07.09498', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('51562f95-92c3-4f4e-8048-38a0e5241ef3', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 5, 'b972ad1c-7f98-4722-b602-ddc1a01aabe1', '4bb69062-d909-4b90-99c5-01d24fdb4871', '2026-01-13 21:58:07.098012', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('ab19fec5-dcec-46c5-8ef9-3efab49fc207', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 6, 'db36a0c0-f059-4a34-8548-a5f11d4b5902', '78a34f6d-513a-483f-9d39-2489b051567e', '2026-01-13 21:58:07.101837', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('08c40117-bb0d-4533-b73e-d6cd9f97f616', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 7, 'fce36370-33cb-4abe-8c48-0074e1f034f4', '8efcb6bc-0e67-433b-a190-6c71110d6b6c', '2026-01-13 21:58:07.110906', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('6d640527-d6ee-4cd0-8093-b53dc6846caf', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 8, '56d8e4f6-22f9-4056-9150-3d117495fa02', '6c501d00-2faf-422e-882a-767be9543b99', '2026-01-13 21:58:07.113783', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('4bddd2e8-ffe8-49e7-812b-80eda4b82d4e', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 9, 'eaeefb59-bfc5-4442-8bd3-628dad9778d2', '3f47b2e9-4437-4407-b2cd-3049be8758ff', '2026-01-13 21:58:07.116396', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('8985fa78-d5c1-46f3-8d0b-2f81d07881b6', '63d141bb-f8a4-4836-b77f-17649410356b', 1, '3aa0a564-92f2-4523-b393-b9e38679c3e2:0', '9f0a8619-88d4-41e8-ac52-09d6bc416ff3:0', '2026-02-27 09:57:23.001349', NULL, NULL, NULL, NULL, 88, NULL, 10);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('c345784c-92a7-40bc-83be-4646cfecddcf', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 10, '5cb0c887-6825-4e75-8fb4-f17de235e640', '6687a6b4-55de-4c40-adb5-20de06591940', '2026-01-13 21:58:07.118967', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('36a09e6b-0e56-4c51-8400-98d0e4f11e48', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 11, 'dec16039-370f-4e75-a800-449f36bb4ec4', '31d94e78-28d5-4efe-99f3-8b551a2922f5', '2026-01-13 21:58:07.122854', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('4b72f826-0f15-4d59-8113-b505e2c4e103', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 12, '26f341c0-4778-4a68-ba90-cbcc8b82bbd4', '56290726-2e3f-4f66-ae95-cd9b95753bc7', '2026-01-13 21:58:07.1256', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('9d973b75-fca5-4464-bec7-e0a32c4f0276', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 13, '98558d8f-d140-4ed0-8fc8-9c050a923e2a', 'e4c64b23-d9e5-4ede-b185-6d1c01e699a8', '2026-01-13 21:58:07.128404', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('13c6d043-5b6b-4722-8848-f3701a465426', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 14, 'ae19de8c-ac3c-4608-9a20-27a88e4653d2', '810053b3-a764-484e-8868-a03797b28f27', '2026-01-13 21:58:07.131025', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('fde3af86-11f2-4e58-8f09-4938a1c0a92b', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 15, '559f19a9-f64f-4f6d-a023-abe9f6ce2905', '60b8acb4-17b1-41e8-9d1f-d1a809770487', '2026-01-13 21:58:07.133571', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('ed890b57-298b-45db-ad05-593985316b79', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 16, '038551c1-8c69-4166-a312-e57b90fbb242', 'e0a52177-c522-4663-b3a0-8a40d841c57a', '2026-01-13 21:58:07.136259', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('17dd2f84-dc1d-4040-965b-356e384933da', 'ade97168-005c-4ea7-9456-d8649854b331', 1, '24a9005f-8212-46b6-9bb9-a494f30ea6ed', '54d3a9b7-4048-4922-9987-c9c066b6c6d2', '2026-01-13 23:06:34.566285', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('0bdfb556-3798-40b8-ad56-d2886eeba945', 'ade97168-005c-4ea7-9456-d8649854b331', 2, '6195f095-000c-4c6a-9aab-8cedbfc07102', '6a0f3b25-cd0b-42d2-bdcc-2dd2725c6ffc', '2026-01-13 23:06:34.569683', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('5c92a375-5d3b-4567-8b68-4b31c3695b20', 'ade97168-005c-4ea7-9456-d8649854b331', 3, 'd88ba423-2f85-4779-abd8-3d0f33630344', '0c37d6d4-b094-48a9-b79f-b9d197e26127', '2026-01-13 23:06:34.572916', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('3209b7ff-6d1a-4937-82ba-d4b963c23069', 'ade97168-005c-4ea7-9456-d8649854b331', 4, '19a4ba33-bd4a-41f9-9563-13b8c0bbcf28', '20515a67-bcea-47ff-9027-0f097c3f636c', '2026-01-13 23:06:34.575865', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('0c9c5df9-745f-4060-80e8-645cf0b9295e', 'ade97168-005c-4ea7-9456-d8649854b331', 5, '14ba5ee9-b7bb-45c9-81b6-83d80bea636a', '874bc3fe-4fbb-417e-a4a1-dcbe69c2fdad', '2026-01-13 23:06:34.577733', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('ecddface-b03f-4d54-be1b-e42057b661fe', 'ade97168-005c-4ea7-9456-d8649854b331', 6, '3026d8df-4003-42d4-94f8-1c1289c418a9', '7228c7e8-6ddc-45c0-bf61-d5d147312917', '2026-01-13 23:06:34.580924', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('93e65b73-54bd-44ee-93ef-6a3cbdc81e08', 'ade97168-005c-4ea7-9456-d8649854b331', 7, 'b4efdd02-bb44-44cc-baf9-da093331e4bc', 'be46ad14-7270-426b-9bb1-1c6c8203f206', '2026-01-13 23:06:34.585058', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('3e096db8-6f0e-4838-9042-c2cba37f0361', 'ade97168-005c-4ea7-9456-d8649854b331', 8, '92ff1eec-8988-4494-9297-5b58337c6beb', '67ff43f4-36d7-4037-aee7-38206d84f255', '2026-01-13 23:06:34.587502', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('30a3336b-f4a1-4fab-8b0e-d0374496e181', 'ade97168-005c-4ea7-9456-d8649854b331', 9, '8261ba0c-ceb6-4836-898a-d8bb7064de34', 'a998d11e-e95b-4ad2-b3a1-737a782bc1c4', '2026-01-13 23:06:34.590129', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('65a1efb8-56ef-43a8-bb4a-46cc640447e5', 'ade97168-005c-4ea7-9456-d8649854b331', 10, '9d0c9ee8-9d2b-4e38-9a2c-1deb03ff7cb3', 'a3a6e511-3f29-40d1-b7d3-da9fedf7b7d5', '2026-01-13 23:06:34.593299', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('08032dfe-70a3-4561-abf1-e5d9b7996fbf', 'ade97168-005c-4ea7-9456-d8649854b331', 11, '19759c0b-80d7-46d3-bffd-9ca67589bcd5', 'cf919158-a446-4201-ab43-83a8c76e151e', '2026-01-13 23:06:34.597558', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('ac8f4985-8e01-4f26-806f-9b3a3b65d5b2', 'ade97168-005c-4ea7-9456-d8649854b331', 12, '30e1c4d3-7987-4678-a843-ca06f8865319', '5dd4c096-e5ee-48e7-9274-086fcbe8a9fa', '2026-01-13 23:06:34.601406', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('7c62c77b-02bb-4642-8430-fa8f8f6f8b94', 'ade97168-005c-4ea7-9456-d8649854b331', 13, '7c93551d-d483-449b-be78-cdcc3a3db073', '4dc28ff4-04ac-4aaf-a256-0ba910f10b67', '2026-01-13 23:06:34.604139', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('38f2647b-c696-4755-a198-1d20a39b650b', 'ade97168-005c-4ea7-9456-d8649854b331', 14, '53a6cdbb-1b8b-4a34-b81f-ad1ff6d21400', '685ddc7a-2b79-4d02-8007-c81dab1da81c', '2026-01-13 23:06:34.61179', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('7bd4ede2-3495-4970-b44a-0e16cd8f91ff', 'ade97168-005c-4ea7-9456-d8649854b331', 15, '7da5e4ab-45e1-462c-a01e-d29a22dde6a5', '747bd9d4-286d-4973-af0d-012a001404f5', '2026-01-13 23:06:34.614332', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('69b5c9d9-3d42-493c-8219-4f278015de9d', 'ade97168-005c-4ea7-9456-d8649854b331', 16, '604cc100-f904-4dcd-b986-c3414e89e736', '9e96ccf3-0593-4193-aff2-96877fc49f82', '2026-01-13 23:06:34.618584', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('0f76fd8d-3274-4f6e-b601-fe078be7f624', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 1, '642d3f55-72f4-443d-a434-2778b1dec4c5', '68f2f214-776f-4863-a35e-a4af4b8c5dba', '2026-01-14 12:54:11.755611', '06fdeac1-f567-47da-971a-96a871284dab', '8e0f4091-4867-4ba7-8506-6cec30684046', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('1cc0207b-99f0-43cf-8c69-311610af08c8', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 2, '96c55f99-652b-4090-a604-4c4cb4a443d9', '810a4c53-dfef-4392-b10f-dc552966d045', '2026-01-14 12:54:11.759604', 'c7dd0028-f50f-4434-9879-773a5ffba39c', '6c27f7bf-dc94-4d7f-a284-32358d589ddf', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('00f62663-efa4-4bfd-b508-02db549cb9ab', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 3, '18f0cb35-f7bf-4470-bb0d-a24b403b6b3b', '7efbc897-03be-4d3e-86a9-765d922503cd', '2026-01-14 12:54:11.762989', 'd47f1a63-9995-4e9d-add0-114a2aa84410', 'eec02ae5-cfa6-4bb1-a494-90a659278c07', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('eff19109-cbff-48ab-94a8-aedf3c65215e', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 4, '0d0b2a31-d1a6-42b4-a49f-bd2dfc66bab3', '017b3614-44a1-48ca-bad3-558b94b1819b', '2026-01-14 12:54:11.766598', '1c22ff7d-c54b-496d-b3ce-88bfcf89d9d7', '9a4bf229-07ed-426f-b300-85a58f722f78', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('7bdc5485-e56e-4f33-96e5-8d0f47163eb0', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 5, '5477aac5-0f92-4b67-a4e2-c9ad082f76e7', '9cb92e07-c0ed-4e48-8c77-571959ef3f29', '2026-01-14 12:54:11.770327', '66e0e4ef-5f3d-4af5-94c6-c8a4b73d5232', 'b2b5454f-cb56-4822-91ee-b51f9b29fbbc', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('cd1c2ca5-56e9-4285-8183-febb92bd4d66', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 6, '4be425db-ee35-4ab8-b698-6283ce140dfe', 'c5353db6-7153-483c-8cb5-de2b86ddcaae', '2026-01-14 12:54:11.773356', '6a320222-70b9-48fc-9792-b5c4c1a8a863', '86a7e75d-a1cc-41e3-9ddd-f0bab95f5023', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('4d6b1f49-4342-43d6-bf6f-eb9be0586ebb', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 7, 'fb019bbf-e1d1-4ca5-97f5-f56792fcc942', '38f2a3b7-b7c3-4381-83cb-23235c5eb4c8', '2026-01-14 12:54:11.77588', '29798f01-3dbe-42a7-b7ee-106c07f70070', '29bb2cdb-1a2d-44b6-9ed9-b30a15a44b05', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('045a092e-45cd-4f5e-bafe-03f3c1968757', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 8, '43c59d25-fbc7-4e3a-b357-6b8ffb188b20', 'b209373e-43d7-4c87-9e1a-0b2d31d95726', '2026-01-14 12:54:11.778588', 'b5655a92-7c6d-454b-872e-d897724b64d8', '07371cca-5bcb-4617-b0bf-be4aaeffe6ea', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('faf3f8f8-500b-4fcf-8094-af35fadf8120', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 1, '5014fcf3-1c52-43c0-9207-8d3e29d393d5', '5014fcf3-1c52-43c0-9207-8d3e29d393d5', '2026-01-14 15:10:28.024801', '5014fcf3-1c52-43c0-9207-8d3e29d393d5', 'e0980d70-bcb4-4ced-9ad3-ee4aacd508f9', '5014fcf3-1c52-43c0-9207-8d3e29d393d5', '6af0aec7-e834-468c-9217-655b3c69227a', NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('e9102671-c0d8-4e63-9a01-8eeaad723c08', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 1, '4092ee15-a39c-418f-85fa-7890e2d85616:0', 'e428d958-8fca-4a50-9273-6155888f782a:0', '2026-01-14 15:30:27.108867', '4092ee15-a39c-418f-85fa-7890e2d85616:3', '9162c7a3-2434-46fc-931f-a1fddbd0ea92:0', '4092ee15-a39c-418f-85fa-7890e2d85616:2', '4092ee15-a39c-418f-85fa-7890e2d85616:1', NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('3346b98f-1300-4189-8f4a-a082cc569062', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 2, 'e2872e67-286d-4b76-a803-0ec35eb39649:0', '14b49749-d092-4ee0-a046-29cbcd79ef23:0', '2026-01-14 16:10:35.57121', '884d4d4f-1060-4bc4-a268-d5df233d5f73:0', '89cb7b6e-5be4-40d2-b819-54a703c32967:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('952964e7-f5f6-40fd-9e0e-6d02eff5eb4b', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 4, 'b81d02be-b497-4059-b9ab-6272c0fc0bb8:0', 'a45c24f0-15d8-4c2e-8011-30268bdf8576:0', '2026-01-14 16:10:35.578258', 'a126c69b-f211-4cc6-92be-eefdaaaed55e:0', '90fbae02-2135-4cb1-aae4-6239e084d105:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('39ac8e1c-d281-4559-9cf3-67fa8e333518', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 5, '35f5348e-21af-4b70-95e1-5137b8e53d77:0', 'e16d233b-00a0-4f1c-83c6-9fb322089c4c:0', '2026-01-14 16:10:35.581429', 'ad5fe065-1084-411b-99cf-394a621370ba:0', '234720b6-fc38-47f0-9557-c24b2262cd97:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('6c75f3c6-2b62-4c0c-a6b6-1d03bfb431a3', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 6, '7b65c1dd-ecdf-4db1-bb3c-6c6422a0884b:0', '0ea4bd6b-1426-42a3-9302-a26b77481f07:0', '2026-01-14 16:10:35.583778', '6db0f305-ac86-4c9d-9eeb-9d9cad521353:0', '8d3953e8-5af6-4f66-af24-f4c2f84cdb57:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('6d86204e-fb2e-4e21-a2d0-e2394bc6fbb8', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 7, 'caf6c67a-e0be-405f-9cfd-bf437757df4a:0', 'ea828574-c89a-4f99-924e-535fa39417aa:0', '2026-01-14 16:10:35.58679', 'bdea768f-6be3-496e-9060-116a9c659568:0', '870f8905-96e3-4283-a77c-dbe627b3f044:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('af4fee40-74ff-4590-b48d-df2ec8a23828', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 1, '838045d9-732c-44c8-a066-38229790372a:0', '38aed938-6ed1-4111-b145-4bb45806c032:0', '2026-01-14 16:10:35.568073', 'fd00fa85-3f30-4e81-93a2-5a65ac7b52d2:0', 'c477a80e-68fd-4aeb-a58a-21187234cf51:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('548d8b68-e0a6-4d8f-8db6-c44b9e689184', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 3, '38aed938-6ed1-4111-b145-4bb45806c032:1', '73fb1a2a-19c7-4805-9d4c-eab6b7c25c0d:0', '2026-01-14 16:10:35.574374', '38a54f95-0ba9-458f-ae6c-c380b30a4178:0', 'a8523ab3-1748-4a7f-b9ce-c4ceef908e85:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('b8b6d3b3-e19f-4582-917e-eecba0e44c47', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 8, '92d4147b-5109-4349-a5bf-a6e7a9b5af0e:0', '65a86eaf-5785-4cbf-8005-750f7bfc58da:0', '2026-01-14 16:10:35.589701', 'dbae9b8c-04a4-4396-9062-2192b1615728:0', '766c2f50-e87a-4d48-9c5c-410c0676da29:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('b97f8183-5311-44d0-bfb6-d6351435b504', 'bc768859-08b3-4032-8484-bef764577794', 1, '89c7f876-4bd6-4e2b-bf94-b3efdf467031:0', 'eb7b30e8-9b57-457d-9c74-a75af821cead:0', '2026-01-14 22:22:01.473878', '3431f1ec-b0ea-4fed-9404-5ea55de484b5:0', '15a33305-a2c2-48bd-906c-e7cb25a377e6:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('e8da9b6a-984c-462a-af04-6fdb4224e46d', 'bc768859-08b3-4032-8484-bef764577794', 2, '47f0f0bb-77ac-4ffc-b195-6d0344c96893:0', 'f93cfe97-6cd0-4907-b093-ade52767195e:0', '2026-01-14 22:22:01.480889', '28754522-f9f5-4179-a613-27aa1795ecda:0', '15a33305-a2c2-48bd-906c-e7cb25a377e6:2', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('b6b69d47-9bdd-4d48-9bcb-8c066030cb7a', 'bc768859-08b3-4032-8484-bef764577794', 3, '5f07fc15-e60c-4727-a35c-6285f0bcefa5:0', '4c4cbfab-dee2-45f1-8c68-952d10ca5a34:0', '2026-01-14 22:22:01.484425', 'ad9afdac-0585-49b6-88b4-cfef49ab6507:0', 'f25d025e-d325-4c86-af23-8a80b72c0a73:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('a00de14e-c305-4b12-a640-408d7629ad2c', 'bc768859-08b3-4032-8484-bef764577794', 4, '3b032f7d-3f83-44b1-b7bd-d1d9bb61dbbe:0', 'd1d02191-40ce-4541-9d8b-c4ad6b67e085:0', '2026-01-14 22:22:01.488921', 'd38369a4-4ec1-4140-b371-1cf2cb4840cd:0', '4765e22a-bb04-47fd-9394-9c57d1d8eb75:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('1b75675d-0621-4ef5-9592-4269acdf2477', 'bc768859-08b3-4032-8484-bef764577794', 5, '50f972bf-5f21-4b56-aee8-cd0a0e77f615:0', '0a09b89f-a055-4596-ad66-4d0afd7df251:0', '2026-01-14 22:22:01.491791', 'fac32a53-20ac-4147-a9eb-04fe53dc3402:0', '11d00b46-ea21-48eb-b6ec-a5774c560ce2:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('d202ab82-8ac5-4a04-9fb0-1a9047e8ce3f', 'bc768859-08b3-4032-8484-bef764577794', 6, '8450ddf4-7008-4eae-809f-35c89827d376:0', '0116a672-2a89-4e42-908f-99d06c73e92b:0', '2026-01-14 22:22:01.49592', 'eb8ca8df-4e67-4df3-ac3c-4072a3e9443e:0', '79c09fef-8f04-4ace-82c5-567fda39b1e7:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('ee359767-1418-40c5-a912-453ee5b0a8fb', 'bc768859-08b3-4032-8484-bef764577794', 7, 'ba6cdeaa-4f5d-462d-9de3-2e4024e19d3d:0', '65f32214-9e25-4731-94bf-e5fe52954364:0', '2026-01-14 22:22:01.499153', '05753e47-15ab-4f59-8bd8-9ba9614f9989:0', '01ec0f04-095c-44d7-b12d-e974671c5469:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('aa456381-95c6-48ef-b188-d13755111020', 'bc768859-08b3-4032-8484-bef764577794', 8, 'fdd7bcb3-eafa-4297-b4ab-714974a008fc:0', 'dac65e88-d257-456d-83a0-8547ee269f58:0', '2026-01-14 22:22:01.502108', '15a33305-a2c2-48bd-906c-e7cb25a377e6:1', '36dd7b65-3e18-4cc9-940a-82fa727778c5:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('699d7725-db1b-48f5-a6ab-c708a91e089d', '57675f9d-62ba-4214-b268-567267dbefbd', 1, '443b8ced-65a6-427c-834c-884b4c4f9be9:0', '443b8ced-65a6-427c-834c-884b4c4f9be9:1', '2026-01-14 22:34:19.215063', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('ef0d6e75-81a0-4a89-b028-7eedf5ab5063', '57675f9d-62ba-4214-b268-567267dbefbd', 2, '24e4527e-f6a1-43c3-a1c7-178ba3d1ed35:0', 'c4c6b2e0-949c-4ee4-9f75-fce0221dcea2:0', '2026-01-14 22:34:19.22081', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('b4fa0aa2-733c-4b0e-a1a5-e6cefd785bc1', '57675f9d-62ba-4214-b268-567267dbefbd', 3, '14f6ac4d-9bc6-45da-b34f-a50509fed9af:0', '65733e7b-e8df-48e7-8e7c-7df49348a526:0', '2026-01-14 22:34:19.223893', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('f5931456-43f6-4c51-ae0e-7c603e4ef26f', '57675f9d-62ba-4214-b268-567267dbefbd', 4, '0c5c9f94-2a42-4b27-8925-13d2bfe0a502:0', '31b8d5a1-2e37-49e3-8399-5826f7953381:0', '2026-01-14 22:34:19.227597', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('12723bf2-104c-48bb-a6e7-5d9813fb65d2', '57675f9d-62ba-4214-b268-567267dbefbd', 5, 'a8d55999-d03d-48eb-a331-79f478a5b156:0', '7571b549-8009-445c-9e0d-f9f318a21fc0:0', '2026-01-14 22:34:19.239491', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('c02fe703-e68b-41d2-8960-efbcc52624bd', '57675f9d-62ba-4214-b268-567267dbefbd', 6, 'e434700b-1c07-42c7-a240-301971e037b2:0', '2ea8b240-95e6-433d-b87a-3ee03a304789:0', '2026-01-14 22:34:19.243932', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('f540d3af-1c70-4823-be28-ab98c715f537', '57675f9d-62ba-4214-b268-567267dbefbd', 7, '1c04d465-b3d7-4c5c-bf26-b73e441f0067:0', 'a48fb293-978c-46d2-8e38-ae16b2897ee9:0', '2026-01-14 22:34:19.247747', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('8f03d6fe-480a-4086-800a-1195132355a4', '57675f9d-62ba-4214-b268-567267dbefbd', 8, '98ac1c33-732e-4579-91a1-ac8fe8f0ef3d:0', '2aa8f23d-8963-4abc-8d4f-8b1376ebf4b2:0', '2026-01-14 22:34:19.24956', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('6b1558a0-9a49-4c4b-b239-7c4242c12c05', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 1, 'a70cd961-0514-4f5c-8a9a-f378abc99e03:0', 'c2dba450-a115-4693-8680-94f69a8ce21a:0', '2026-01-15 16:33:20.861213', 'fb1acc39-5637-4069-b01e-b7c681dfa9e5:0', '377301fb-3b88-46d5-9712-5939b3149320:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('c04e841d-1072-4a28-bc08-4254a9d007ff', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 2, '8f096f9e-0970-4f82-a638-8231f3dae6f0:0', 'cffc0a6a-d31a-47fe-bbf5-a3994605848e:0', '2026-01-15 16:33:20.867265', '75ad922c-fccc-47a5-b14f-2dc967bcba2c:0', 'ebb20a21-c49c-434d-9209-2fb21551639c:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('b08dc2a4-1277-44bc-a82f-a4b9b05d168a', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 3, '4cf8fc0b-174b-4dd2-b999-5d82a25933cf:0', '27907eba-f24c-4ed9-b800-58ab8af5c1e3:0', '2026-01-15 16:33:20.871771', '38dd2a78-b85e-4c25-8e1d-09f940c26554:0', '1a8ef7fa-90ca-4d57-99a5-b4d295a1aa10:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('9d2a40c3-57f1-43af-9116-f4f391369aef', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 4, 'e8358d0e-bccb-400c-bd8f-b6f73b2f516f:0', 'c51e6004-3937-4d2a-82ad-087e1989ccf9:0', '2026-01-15 16:33:20.875122', '62097792-3ae4-4c2d-afaf-8e8de1c834f0:2', '62097792-3ae4-4c2d-afaf-8e8de1c834f0:1', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('a4c5c8b6-8b3f-468b-af25-77480224b1a7', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 5, '70fabcff-3391-4aee-9afe-44e4c47282b2:0', '24e706d0-cd28-47c1-820c-1d9fb9081013:0', '2026-01-15 16:33:20.878824', '5391384f-b6ef-4434-8dbc-e2c528489f47:0', '87eb2b46-fa07-4846-a93f-ef20aee7f7c8:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('6d6f16a4-5b2b-4119-919f-eb67ea03bb87', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 6, '62097792-3ae4-4c2d-afaf-8e8de1c834f0:0', '47c1abce-9584-4fa1-aca9-7ebe7c9a5eda:0', '2026-01-15 16:33:20.882563', 'c14ebb2c-8c31-40ea-95c8-bf22175905b4:0', 'ca93bb47-a3fe-42a1-a3d0-0ce513f33cd8:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('084393cf-8418-4561-a313-c7b016ec7275', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 7, 'd0b7be19-2dd6-468e-a29a-cd37ffdc98d9:0', '9a8b5634-8cf3-4e24-8f83-2b6511079104:0', '2026-01-15 16:33:20.886147', 'd92acccc-7bc8-4dc7-8402-3fd7f0ee86e0:0', '98f8a391-03ac-46c0-891d-3265a6d3925e:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('c433242c-bb16-43f0-aae5-7e0d8a385f10', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 8, '4e29916b-0767-44ab-a6c6-d56e0e6ceeeb:0', '15b33573-4f26-4cf5-8311-eb8995d3e358:0', '2026-01-15 16:33:20.889756', 'd3d527b9-1652-43f6-9fe9-32f97c8d4214:0', '90f4be51-65ea-4f55-a6fc-ec47952868c5:0', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('13aa22f9-ffee-40bd-9463-187148665f2a', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 1, 'e914525d-c835-4573-8a21-a86cd98e2acd:0', 'abd77ef5-6efa-4987-b3c0-c4783376a4b5:0', '2026-01-19 23:56:19.66194', '9c3f02e4-bc95-419e-9ad4-123d153b95c3:0', NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('47057c46-42ec-49a9-9afb-379b9338e0dc', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 2, '15472124-ea5b-4ec6-b3a2-f393e74c2b6c:0', '7e6d9e2c-a5cd-4561-b86e-8dade6618207:0', '2026-01-19 23:56:19.667185', '607ab39a-54ec-437a-94ff-d4c79a62c327:0', NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('ac0830db-b903-41f2-a2f9-9e5687119df0', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 3, '1c92208c-0f9d-49fc-96f9-b3e1a2f26b36:0', '95df3cb8-1ee5-410e-9dfd-1dc1ea30ec69:0', '2026-01-19 23:56:19.670761', '5918e7d9-840d-4795-aa25-7c942d70aa83:0', NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('38b38223-3b97-46c5-a3f0-53bb167935ca', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 4, '46f3cc1b-4b01-4bfb-bb93-e00778cd2ddd:0', '12fc37e5-47d2-42ba-8352-f7adb7d3abde:0', '2026-01-19 23:56:19.674544', '5688c369-27f4-45c1-9422-dee3d396e8c9:0', NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('a915cf7c-6878-4415-897f-523341efff5c', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 5, 'ad563bdc-07e3-4cdc-a44f-95233bc0dac1:0', '334951ff-6756-42a3-b47d-50c0b99bfd05:1', '2026-01-19 23:56:19.678268', '88160493-5f9d-4805-976d-0efeff3279c6:0', NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('38b89c68-f040-4d26-a2e0-08f49e1bb67c', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 6, '334951ff-6756-42a3-b47d-50c0b99bfd05:0', 'f5bedad9-5754-4cd9-a112-003c51eb75ae:0', '2026-01-19 23:56:19.681505', 'b4eed765-8226-4391-8427-754f196e1c08:0', NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('a0fe304b-bc45-4ed7-a744-f1166ac3902b', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 7, 'b5c69342-5c35-4c78-b6cf-44a209db177f:0', 'c557a5ce-9593-4ef3-b1a4-a64bda4deb9d:0', '2026-01-19 23:56:19.684354', 'bde176d8-d7b4-46bc-9a5a-4daed1ea3367:0', NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('e87d7f7f-eef5-49ed-8ee0-5314f6cecac7', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 8, '1bb411ee-da27-49c5-b94b-222e9a81d877:0', '4bf2e364-32ae-4939-9811-173e6fced622:0', '2026-01-19 23:56:19.687959', '69adb636-92ce-49ea-99dd-49880ad7bb24:0', NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('7b01ff30-f8ef-4d35-a925-958b771f8c14', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 9, 'baa0b946-ac2e-4698-b570-7c18fd9450ad:0', 'ddcc89c0-993f-4f82-9fea-fd3d40cc86fd:0', '2026-01-19 23:56:19.691498', '218a2916-9d74-4005-87c1-e0b32ef9ab40:0', NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('2146b342-9d6a-4c0d-a222-8f9794e4005c', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 10, '8b1c081e-23eb-46c2-8d8d-eadcfa53a432:0', 'd72af6d0-bab3-4757-9fcb-6127131b51ff:0', '2026-01-19 23:56:19.693879', '8ca90509-e874-4edc-82bc-beb823666d70:0', NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('fb0960f2-8e28-4f1d-9ba0-c5ca779cd2d7', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 1, '37b61554-67e3-456b-886e-50fed069e07c:0', '0d61a704-75c2-4db8-b5d2-5dba1ba6f68e:0', '2026-01-20 09:57:23.541809', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('7694f42f-af6e-4bd6-82e6-808de00b3c73', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 2, 'a00406b9-f662-4589-8bd4-06cd09232030:0', '519b996b-cd3c-4b97-ae94-39861d0ae446:0', '2026-01-20 09:57:23.546671', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('4442bb93-5e8f-4124-9725-05850afa0791', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 3, '53731d27-6a02-4c2c-a1ff-d50467a66e7d:0', '00a28812-a2b7-443b-9f39-1b4551ad397e:0', '2026-01-20 09:57:23.550567', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('0b727420-375e-4653-86e7-ef49a86899a4', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 4, 'c6d6fb0b-d510-475d-b22f-dccb14ec0e79:0', 'ea932cd2-30c7-43b6-8d3f-caed5c18e128:0', '2026-01-20 09:57:23.553805', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('2b5b0bca-2fc8-4ec2-b221-4c34df5599c1', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 5, 'fd0fcada-afee-4ab7-9807-82f2f34a6149:0', 'c3d31129-3fa1-4fa6-88fe-c2b3d9790cd9:0', '2026-01-20 09:57:23.556462', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('75c9a8a7-c878-4153-beb8-bb61f5c87915', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 6, '5129b141-b61c-4a12-b1c8-72661f98e3bd:0', 'bf713948-9b65-4f39-a520-5fc17142d3d6:0', '2026-01-20 09:57:23.558239', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('0142cd53-a166-40fe-99fa-c45881c73a34', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 7, '0ee8a3e6-5851-47a7-b123-cf01c0a27bd7:0', '7dde8f33-a447-45c4-9f74-328887486a3b:0', '2026-01-20 09:57:23.561289', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('306806f7-e8ad-404a-88ce-6742f0876617', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 8, 'da3407d2-89de-4a51-8ff5-7aee39e8c95a:0', 'df51b516-9f87-4872-93ff-b08df4864cd1:0', '2026-01-20 09:57:23.563653', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('ff91378e-7cd6-47ad-99f9-ac5200f1890c', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 9, '921236ae-d706-473a-9efe-9e53339ba02f:0', '65dff67d-272d-4972-ae26-557ff225eec5:0', '2026-01-20 09:57:23.566468', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('7faede0c-ec3b-4c73-9ef7-01b5bbcee8d0', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 10, '53349bed-2441-4447-a933-af6a532451d3:0', '12036944-e6d9-4266-bc1d-0c5ca41a8d1b:0', '2026-01-20 09:57:23.569264', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('f8ea8853-9415-4cb2-b978-368665b3bcec', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 11, '45734096-7f42-4d5f-a33b-340ef38660e4:0', 'ff62448d-1f77-45ad-b584-09dbdb691a2b:0', '2026-01-20 09:57:23.572059', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('6364c24c-cd18-41db-b3b8-4f4004f8200d', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 12, '88ee94fe-97e3-43c6-8397-022dd2b34277:0', '27e578b5-03c4-4be5-b79f-23289a4e3d8c:0', '2026-01-20 09:57:23.574272', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('cc033bde-7f01-42e0-8b49-a74ff18c9b67', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 13, 'e36ede2f-b19b-4326-8397-e0d2c8067060:0', 'a281d308-2a5a-407a-81c6-754af0b1ae26:0', '2026-01-20 09:57:23.57715', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('ffe25ea1-c818-4ebd-b338-b0695fbbe7dd', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 14, '9d562f54-7235-4ec7-99df-aeb7aee7fdc8:0', 'd0393262-122d-4b6b-afbe-954ed64d5145:0', '2026-01-20 09:57:23.580543', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('a06f3a1c-3d9c-4234-954a-be4772337cd0', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 15, '49e6866e-7fc0-454d-a2e7-9baedccf1a4c:0', '387e25aa-f5dd-4329-a4c9-5c378488d6cc:0', '2026-01-20 09:57:23.583959', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('febb87a6-4429-416b-9946-7dcacc7da16d', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 16, '2eea8c73-53d2-4d6d-8437-c10d29e2d87e:0', '5882be03-1a8d-4b18-ab01-2a5efc375dd6:0', '2026-01-20 09:57:23.587313', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('c59ef07b-ccb4-4b51-b416-321b283573c5', '82396200-0443-42d4-940d-40329f33cc51', 4, '5839c322-ca83-444d-a419-cda8136cc579:1', 'b26649f6-825a-441a-b4f3-d601acc9e15d:0', '2026-01-20 10:06:33.643502', '9ce6f74a-c9b3-48ed-b150-11a44ebb1200:0', 'b5ad1ebc-dec3-43b1-9c8c-20c2e78d7f8c:0', NULL, NULL, 44, '10:30', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('5da7d73d-13ae-4874-b861-9c7eb934f825', '82396200-0443-42d4-940d-40329f33cc51', 7, '129b9a01-10dd-4f7f-819b-3cadbadc6d91:0', '4dfe3157-be9f-4b42-8aaa-d8a8330fe7f3:0', '2026-01-20 10:06:33.685002', '358dc75d-9e5c-44b1-ac50-b9a02ae62faf:0', '5839c322-ca83-444d-a419-cda8136cc579:0', NULL, NULL, 54, '11:00', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('6ae7cdd6-acfc-4ba0-9c5d-bb4a356f308b', '82396200-0443-42d4-940d-40329f33cc51', 8, '52dda407-e4f7-4db2-82b5-cd9032e700ec:0', 'f6a93012-2c2c-4d1f-97d1-fadd3f17079a:0', '2026-01-20 10:06:33.693547', '5c276136-2b69-46c2-9a81-0fe6d78f9607:0', 'fff7a2e0-9f9a-4ea5-9989-5dcb09d30d47:0', NULL, NULL, NULL, '11:10', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('6daba201-7bd1-4b90-b4fd-c96104c2d952', '82396200-0443-42d4-940d-40329f33cc51', 2, '26ede0d9-6363-420c-8cb7-e7787cbf93fa:0', '5a79c292-f69e-4ae4-bb1a-2c5a0ce73e9a:0', '2026-01-20 10:06:33.633498', '617c20f7-33aa-4476-83ac-f6660e614bb0:0', '95ee256d-a7b3-431c-b517-1710659c13d3:0', NULL, NULL, 66, '10:10', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('23e70953-1ac6-46a6-8418-0ba365e0878b', '82396200-0443-42d4-940d-40329f33cc51', 3, '0df57344-ef62-4129-8eaf-86cc2a3a721b:0', '2087f3ab-4747-471b-9509-11c18dbf36e0:0', '2026-01-20 10:06:33.640134', '220b5b3f-60e1-4f9f-bb31-1991135b1d06:0', '7d38bfda-e0fc-4539-9fa2-d88559ca7426:0', NULL, NULL, 140, '10:20', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('922c9a73-48e3-427a-ac10-1ae418a0ce3d', '82396200-0443-42d4-940d-40329f33cc51', 5, '6e5fdd43-283f-4254-8da5-f1cb6a317e65:0', '10b2c25f-b983-4aa4-a234-db71cf5645d6:0', '2026-01-20 10:06:33.646917', '2b84f2cb-8d43-444b-8655-80f5f85e8313:0', '79059d29-72bd-45da-b59f-c8a674a5f230:0', NULL, NULL, NULL, '10:40', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('7bf9edd8-467c-44cd-828a-24e86cae14a8', '82396200-0443-42d4-940d-40329f33cc51', 6, 'b1be2f2e-9cab-43fd-b098-c1334da745a1:0', '0da1f4dd-092c-4a5e-885f-067f0f744e98:0', '2026-01-20 10:06:33.650517', '18468f77-865f-4baf-b430-6e11083c8e61:0', '496a511b-de32-4ad3-a6c8-ee87fca04197:0', NULL, NULL, NULL, '10:50', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('299f531d-21de-4141-857a-11c5bbed23e9', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 1, 'bd5ea503-287b-4ad2-aa0b-086cb5b3dd30:0', '8e705699-d9a8-48c6-a5fe-98d9892cb13f:0', '2026-01-21 10:03:51.358083', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('7f6d64de-f3a2-47a3-b256-f01a52a9a6cb', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 2, '578df651-6fec-4c16-8d4c-cd6427f1d31c:0', '93fde65d-63b6-401c-83c5-e283c3e92bcd:0', '2026-01-21 10:03:51.362431', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('3ef364e1-47ce-4340-8e86-c69837a3b33e', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 3, '64dc6830-ca9e-4df5-87df-f6d352bb5d47:0', '7df3d91f-68ea-4692-9cfb-6d67495e915c:0', '2026-01-21 10:03:51.364626', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('727d8c7c-7ce4-4b9c-9727-81051cc733aa', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 4, 'fa090bbb-d444-463b-ac37-6a435aabf07e:0', '9abbe576-7c35-44f7-b82f-6bf13c97e028:0', '2026-01-21 10:03:51.366823', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('27c50926-455c-482f-9e0c-c3c12b3f3925', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 5, 'b9833eb5-aa02-4fba-b2c9-b91086ebd110:0', 'c5c7be60-0f4a-4f39-ab2d-0451dd9f1803:0', '2026-01-21 10:03:51.36985', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('a422017b-b2eb-4d68-84f6-1df5e3a410ec', '82396200-0443-42d4-940d-40329f33cc51', 1, 'ae9d24b3-383e-4ee6-8081-3154f00c9c77:0', '5486114e-2163-457a-94c9-4eafc06ba3ed:0', '2026-01-20 10:06:33.609554', 'e0b2b305-d13c-43be-ad64-1a5645e274f3:0', 'e20ecb0c-67b2-4848-93e9-bca49986e4f6:0', NULL, NULL, NULL, '10:00', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('619e543c-1875-4873-a4f4-e390c95e40df', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 6, '57025c88-aa1c-4f3f-945c-7993645bed73:0', 'cdc40d27-a0b1-4e69-9d4a-cf23c0ab821e:0', '2026-01-21 10:03:51.373038', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('4a154a26-35d3-41df-86f5-b14609db0725', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 7, '47593d46-c5c2-4379-b801-5120297a5db2:0', '5aefed87-f37c-4772-b062-1720e7c2458e:0', '2026-01-21 10:03:51.376224', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('d118e746-dd44-42d4-abd3-60057930a375', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 8, '063cf3bd-0d9f-4f17-8ec7-9fe56f393abd:0', 'b0921fc1-4bd9-4bd7-907e-d494ca9ee7d4:0', '2026-01-21 10:03:51.378484', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('56105eb5-0d7f-42a7-a676-287043ab7574', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 9, 'b3805091-df2c-499e-bf6f-e8506584b9a4:0', '2cf528f8-8793-48af-a6f2-136b5e2e1c33:0', '2026-01-21 10:03:51.381089', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('dbcccd87-34a6-4bf6-844e-851a08d168be', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 10, '56acd54f-2b50-41a2-b7ab-3ceb8ec33a70:0', '79dc6cf1-898f-4591-b7b1-22087bfbf034:0', '2026-01-21 10:03:51.383947', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('609233f8-c698-4bef-8d80-776634de96ac', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 11, 'f778bf9b-89f3-43a3-bf41-75d1e8440ebc:0', '0b6efc63-c8b6-4e52-81d0-5610c20d2d1f:0', '2026-01-21 10:03:51.38704', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('61a5c832-a4f2-4827-a526-c917cdc4eb7a', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 12, 'a408b9a3-e2f5-49e9-bb04-7e0b4a7717b7:0', 'e6951036-5a2d-4d4a-b7ac-d2aaa172b28e:0', '2026-01-21 10:03:51.389878', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('29a3d5d1-8b94-4c2b-b696-ff2d7033cdfa', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 13, 'f055967c-3b2a-4d4a-ab13-30de8efb698d:0', '4dac2efa-1f88-4628-ad3e-0b0b94e02014:0', '2026-01-21 10:03:51.393202', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('92ea1636-6c3d-41de-9c27-82f2bc2492a9', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 14, 'f6a5ad95-03cd-43c4-8eef-72bd1bd3d7aa:0', 'd22a1f9b-a639-459d-a026-0c6eb5961423:0', '2026-01-21 10:03:51.396559', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('b0b3d510-67ff-4505-a4ed-51626b64b44c', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 15, '188b21b5-b016-4bf6-88aa-e3dfc5fcdeda:0', '3a6e171d-9f2c-4767-9cce-bc2d618a6314:0', '2026-01-21 10:03:51.399386', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('97dfe530-a211-457a-b27a-e5377d06629f', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 16, '6fd8c8d4-b0bd-46b0-b676-9253f759e861:0', '6eb9d5c8-fd4c-4f66-8c60-31732ba0ff1a:0', '2026-01-21 10:03:51.402381', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('19641da8-84c8-43aa-a109-dc08f26d7244', 'a4974196-59ba-4220-9f4f-8236ee709b74', 1, '52c4dc0c-1fd6-4845-9d5f-73c5049f39b3:0', NULL, '2026-01-26 23:36:18.12465', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('7bb3fed6-bdd0-4764-aa3d-525594b10623', 'a4974196-59ba-4220-9f4f-8236ee709b74', 2, 'bb95d30a-3e03-42ba-8fc8-30c2ed0596ba:0', NULL, '2026-01-26 23:36:18.130876', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('e200589e-2043-483c-a994-a21c4427fee7', 'a4974196-59ba-4220-9f4f-8236ee709b74', 3, '25ae06eb-67a4-40a5-82ab-5856ad97aa0e:0', NULL, '2026-01-26 23:36:18.133492', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('f3a8487f-c14c-4ddb-9dc8-49db308606cc', 'a4974196-59ba-4220-9f4f-8236ee709b74', 4, '0989f363-66fb-4730-ac1c-21794a609ed6:0', NULL, '2026-01-26 23:36:18.136603', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('ddc29c0a-3010-411b-9261-956d3c100807', 'a4974196-59ba-4220-9f4f-8236ee709b74', 5, '837f0f8f-57f5-459d-8ab8-701210dba5fa:0', NULL, '2026-01-26 23:36:18.139746', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('d1665738-0bfd-4c65-9e5b-214e6d870ccf', 'a4974196-59ba-4220-9f4f-8236ee709b74', 6, '7cf2cf63-2713-4fc5-9c1a-5759134ca6f5:0', NULL, '2026-01-26 23:36:18.142367', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('45ad3419-d0a9-4218-88ce-1ee5324102b6', 'a4974196-59ba-4220-9f4f-8236ee709b74', 7, 'e6c01a6f-5cd6-49e9-b019-5a6e0c876d6e:0', NULL, '2026-01-26 23:36:18.144898', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('975dc4d9-3c99-4cbe-b5ab-cff96a2995d8', 'a4974196-59ba-4220-9f4f-8236ee709b74', 8, 'b55182ec-5320-41ce-9f8e-30ae3288c9f7:0', NULL, '2026-01-26 23:36:18.147486', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('a3c2a084-abde-477b-9d24-0044ff1004af', 'a4974196-59ba-4220-9f4f-8236ee709b74', 9, 'b61daa62-cd9b-40e3-9f78-75017f69f683:0', NULL, '2026-01-26 23:36:18.150497', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('2ed716b4-d286-4b6d-8260-a9545f982a0d', 'a4974196-59ba-4220-9f4f-8236ee709b74', 10, '73a76c26-dd8b-440d-a302-b5baca6b1129:0', NULL, '2026-01-26 23:36:18.153378', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('d9d542ed-f524-41be-aa54-c992ad0b602e', 'a4974196-59ba-4220-9f4f-8236ee709b74', 11, 'ffa6cd93-e5bf-4013-9a2e-8492515769ad:0', NULL, '2026-01-26 23:36:18.156305', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('1ba4d4f3-a63f-4a37-99ce-0a841410bbc8', 'a4974196-59ba-4220-9f4f-8236ee709b74', 12, '3e0b60f5-2a9f-47a3-a0e5-2670ed30d3fd:0', NULL, '2026-01-26 23:36:18.159094', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('c5573cf2-c5dd-4056-9a90-a392b4957190', 'a4974196-59ba-4220-9f4f-8236ee709b74', 13, '9717acac-87fc-4fba-8609-aeedceb65ee4:0', NULL, '2026-01-26 23:36:18.161884', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('0be2b25d-03e7-4701-99d4-b55862964ad4', 'a4974196-59ba-4220-9f4f-8236ee709b74', 14, '7e59369f-31cf-433f-9132-ba08e998c3b3:0', NULL, '2026-01-26 23:36:18.164109', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('0b4b4529-22bd-466c-b305-f4053a0e1ae2', 'a4974196-59ba-4220-9f4f-8236ee709b74', 15, '0db7cf0c-fffe-4067-837a-24c17eda0d9b:0', NULL, '2026-01-26 23:36:18.166825', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('5ed10470-36d3-4d99-b8c8-c344f5cde668', 'a4974196-59ba-4220-9f4f-8236ee709b74', 16, '3e45a563-22f7-4c87-9fed-68d4e2f12183:0', NULL, '2026-01-26 23:36:18.168711', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('c96e53df-d151-4430-9804-e8a48b9b14ec', 'a4974196-59ba-4220-9f4f-8236ee709b74', 17, 'b19a8912-820b-4119-bb7c-a09963bb7880:0', NULL, '2026-01-26 23:36:18.171715', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('6fb9b27c-aa68-4d60-bebb-daaeaf00c309', 'a4974196-59ba-4220-9f4f-8236ee709b74', 18, '8b1c3e5d-5e17-4990-967a-1878aa5d724e:0', NULL, '2026-01-26 23:36:18.17462', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('2f52a8dc-1985-4643-9b5c-f491012b8fe5', 'a4974196-59ba-4220-9f4f-8236ee709b74', 19, '8d662842-eb96-4f1a-8b9c-a594e4b74c49:0', NULL, '2026-01-26 23:36:18.177034', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('a31a7fbf-14fd-4118-bfe3-da45fba1f23a', 'a4974196-59ba-4220-9f4f-8236ee709b74', 20, 'cf3a4eb7-fe11-493a-a728-8ea0a36971ab:0', NULL, '2026-01-26 23:36:18.179874', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('b4470067-50fa-47d2-ab98-47050a385d1a', 'a4974196-59ba-4220-9f4f-8236ee709b74', 21, '4c9a0f7b-5c69-4454-bfa9-55c57078644b:0', NULL, '2026-01-26 23:36:18.182794', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('a470e046-f19f-4dea-9d6a-75f5ac1f07bb', 'a4974196-59ba-4220-9f4f-8236ee709b74', 22, '1af57e07-2084-4268-a08b-46b9caa2ad4f:0', NULL, '2026-01-26 23:36:18.185632', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('98d3567a-eb55-4346-8999-0b7f0bc9b6fb', 'a4974196-59ba-4220-9f4f-8236ee709b74', 23, '3b7874dc-1403-4163-9a4c-8f3cd77e246a:0', NULL, '2026-01-26 23:36:18.188625', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('46dc91dd-33a4-464b-9910-1519256bce6d', 'a4974196-59ba-4220-9f4f-8236ee709b74', 24, '1067b325-ba6b-4fe9-b85d-3ad22ef8c69c:0', NULL, '2026-01-26 23:36:18.191497', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('9cd9fb6d-a408-4f66-aa5c-c534ea5d0a22', 'a4974196-59ba-4220-9f4f-8236ee709b74', 25, '1c1a9fc7-9ac3-4af7-966f-4fdbe56f30eb:0', NULL, '2026-01-26 23:36:18.193701', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('91fb6eb2-9480-410a-a6a0-09803ac60766', 'a4974196-59ba-4220-9f4f-8236ee709b74', 26, 'e687d4c9-e33c-4101-bcd3-d7d7e030f420:0', NULL, '2026-01-26 23:36:18.196652', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('5c890b04-e5a9-47e2-aa1e-0419112abc91', 'a4974196-59ba-4220-9f4f-8236ee709b74', 27, '4b82b210-299c-4c0a-99f7-37354a986114:0', NULL, '2026-01-26 23:36:18.199534', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('511ad56b-5e10-4b05-bcf9-2766464377f3', 'a4974196-59ba-4220-9f4f-8236ee709b74', 28, '9e5fc0e9-4249-40de-8bb0-2e127436e427:0', NULL, '2026-01-26 23:36:18.202448', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('5d6fd87c-6dc1-4046-be21-bdeeb8582ed4', 'a4974196-59ba-4220-9f4f-8236ee709b74', 29, '49836929-450b-4784-9aa4-ce7159ded5e0:0', NULL, '2026-01-26 23:36:18.205307', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('3d36f862-4b21-4ad7-bcac-f245b7936146', 'a4974196-59ba-4220-9f4f-8236ee709b74', 30, '68e7907a-4ce1-4546-a417-6760bc5a5c06:0', NULL, '2026-01-26 23:36:18.207638', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('d56e5b71-757b-49e3-853b-6b9365d5e907', 'a4974196-59ba-4220-9f4f-8236ee709b74', 31, 'bd211c9b-ae3f-4cc0-bcda-3f4707c36e23:0', NULL, '2026-01-26 23:36:18.20988', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('f6541ebb-3f82-4d75-9790-f38434165e8d', 'a4974196-59ba-4220-9f4f-8236ee709b74', 32, '5f1a3329-becf-47ac-8e81-c2089774502b:0', NULL, '2026-01-26 23:36:18.212677', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('e75ebbaa-1b8e-4da7-843f-41634a9570e3', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 2, '91638645-6ed0-4330-b74a-9ee0c06d0bef:0', '161ef225-9542-4c25-ba99-2c5087f549cc:0', '2026-02-10 19:13:41.082927', '7e45ebf8-75de-43a6-a706-8c2cf86012b9:0', 'b25fe95a-b4ad-41d5-8eb2-e0cb3e4d0924:0', NULL, NULL, NULL, '10:10', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('1c0c65d2-cd22-4c50-8c46-f23f0b6432a1', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 1, '67b60284-9603-44b8-a4f4-afd290bc723f:0', '5e29c956-00fb-4fbc-a1a6-19a3f407edf2:0', '2026-02-10 19:13:41.077779', 'ec4383dd-ea0e-4814-87fa-14501825b790:0', '318617fc-71c3-432c-86ef-01f2d42d609a:2', NULL, NULL, NULL, '10:00', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('da378b4f-96c4-4527-a99f-87be9a91509c', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 3, '657bbb12-db36-4616-b4b4-6b4d38ae744e:0', '2dcbd6cf-ee1c-434e-88dd-aaf09dfb29e2:0', '2026-02-10 19:13:41.257811', 'e777adce-34af-416d-b1d9-0d6e25688f66:0', '904b7629-9156-4f2e-83b9-71c4f1bad8f2:0', NULL, NULL, NULL, '10:20', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('d1f7d41b-cc6d-42aa-be21-0c603d882ee7', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 4, '0d344ab0-4cf0-4b59-afb5-bc86aae6dba4:0', '92b64f94-727a-4bdc-a3e5-54220235f487:0', '2026-02-10 19:13:41.261363', '8f077973-644c-4abc-ae57-05d6ccc8d63a:0', '8d590369-e062-4ad5-95ca-0ca89b13cb20:0', NULL, NULL, NULL, '10:30', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('88303bb4-0323-4722-81be-c10ff37e4132', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 1, '933892ed-f68d-4fdf-bc0d-34c5fc69b36d:0', 'd7718edd-b873-45f1-bcbe-5e496256089c:0', '2026-02-10 22:24:08.194548', 'f12a4ed2-9f67-43d5-99f8-7325ac111cdb:0', NULL, NULL, NULL, NULL, '10:00', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('1c6576c6-4c2e-4376-8303-29cbfb4ba243', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 6, '30ace13c-01c1-40cb-aae9-737cb829a320:0', '318617fc-71c3-432c-86ef-01f2d42d609a:1', '2026-02-10 19:13:41.267242', '55a04ddc-89e6-4d42-a99f-34fdbb074e26:0', '9c91116b-c2af-4589-920d-75419f813988:0', NULL, NULL, NULL, '10:50', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('d5ceed83-d50f-49b0-8cf2-730d0911c928', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 7, '8de0d018-edc0-42aa-af36-026ff3509208:0', 'bda66a5b-368f-4c3e-8d82-3f2f42370b5b:0', '2026-02-10 19:13:41.270348', '08f5e76f-7a60-4325-a4db-b4e60f8f2f2f:0', '072bcc7d-3797-4152-a767-1f778320731d:0', NULL, NULL, NULL, '11:00', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('780d8263-2361-48d7-b02b-4dcb0a8de44f', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 8, '44a8a108-ae3a-4da3-bc7c-65c2ff203a53:0', '9b7b3250-80ba-45d7-9ece-ae1b67f54d87:0', '2026-02-10 19:13:41.274415', '318617fc-71c3-432c-86ef-01f2d42d609a:3', '6f714b5f-e889-4311-93fc-542b073fe66d:0', NULL, NULL, NULL, '11:10', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('12d8a36c-2e26-47fc-a995-bdd383dcabe9', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 5, 'd64c95c8-5e69-4ef3-bf3b-f54fde2c4128:0', '318617fc-71c3-432c-86ef-01f2d42d609a:0', '2026-02-10 19:13:41.264046', 'af0f36ca-c0e6-4714-93a8-5ae2aceff3d4:0', 'b1db9627-a5e4-4d33-8d18-7e1e80e97a6c:0', NULL, NULL, 100, '10:40', 20);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('39836765-1bf8-40f2-9b4d-9aebd3bda168', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 2, 'ba333431-a7a6-4c2a-acf9-0ce98c4139c0:0', 'b9e69247-092c-4023-8cab-2692cfa58f3e:0', '2026-02-10 22:24:08.20898', '52c35828-fc61-4694-bb57-73880afd0b15:0', NULL, NULL, NULL, NULL, '10:10', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('13daa2c2-2e64-4018-aaf3-4f31cfd57cf4', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 3, 'fd6ca9ef-e584-4297-8092-11c48dc17a99:0', '3560d7ea-e650-4126-9421-f5b8439ab217:0', '2026-02-10 22:24:08.212473', 'a8202bb4-026b-4f86-81bc-c684a7860c2c:0', NULL, NULL, NULL, NULL, '10:20', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('4f1c5f29-0372-40dc-b7ba-87ba9065c8de', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 4, '85a0f9c9-5aa6-4965-b17c-913b4226f010:0', 'de5503fa-69a9-45c6-a1ff-e7d6a91cf743:0', '2026-02-10 22:24:08.216063', '5097c96c-eb65-4035-b1c7-cdb342697196:0', NULL, NULL, NULL, NULL, '10:30', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('66683a38-2fa9-42ff-a5af-c5bfe0aadf16', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 5, '31c0f1fc-6ec0-43d8-bbeb-202d7c520467:0', 'd471d7fe-d504-4eda-b431-b78a170e9689:0', '2026-02-10 22:24:08.218475', '147b9678-ee53-4e60-a0c0-f0c8a9c96fa2:0', NULL, NULL, NULL, NULL, '10:40', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('7860c1e3-275d-43e4-b4cd-c4710803bbea', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 6, '3c39758a-c19d-4c87-9884-c43dda343bc4:0', 'f413babd-1c15-44af-880e-7ea40a499a7e:0', '2026-02-10 22:24:08.222501', '3c39758a-c19d-4c87-9884-c43dda343bc4:1', NULL, NULL, NULL, NULL, '10:50', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('b7120b0a-69ac-44e9-8eca-2425427f01a1', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 7, '9f21714f-a7af-491f-bde2-cef0aeb4d6ec:0', '341f7d11-090d-4220-9308-61e769157c02:0', '2026-02-10 22:24:08.225694', 'c17b97fb-c303-4712-b618-d7df79afcab4:0', NULL, NULL, NULL, NULL, '11:00', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('1f5778cd-1a55-47bb-bf0f-a1523947aa10', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 8, '6ce89c58-922b-40ae-ae4f-b7857e8cb7c2:0', '9dfec276-6f70-4cf3-9491-8c8233d415ef:0', '2026-02-10 22:24:08.228468', 'b4b80217-59ec-441d-abba-2c780cec7ff7:0', NULL, NULL, NULL, NULL, '11:10', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('1a563b41-4e03-4b66-8319-1b5eb13e22fd', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 9, '56a0827e-89b9-4376-8b6e-b48e09e06a65:0', '325a808d-6321-405a-a490-443eef6abd7f:0', '2026-02-10 22:24:08.23151', '2c54af28-8544-4125-8700-52a49bd0b1a2:0', NULL, NULL, NULL, NULL, '11:20', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('aa02b48e-7be1-4b39-8d51-240ef9cfb3b6', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 10, '2084d8d6-2c37-428d-b81a-2f42de8a9cf7:0', '5742c5de-9b98-41a3-9b94-a6284260eafe:0', '2026-02-10 22:24:08.234919', '3c39758a-c19d-4c87-9884-c43dda343bc4:2', NULL, NULL, NULL, NULL, '11:30', NULL);
+INSERT INTO public.competition_teams (id, event_id, team_number, player1_entry_id, player2_entry_id, created_at, player3_entry_id, player4_entry_id, player5_entry_id, player6_entry_id, team_stableford, tee_time, team_handicap) VALUES ('13603a00-40df-4b2e-a8b2-57ddac9f7ef1', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 11, '7b53546f-6989-4053-8c2f-bf549ee17e09:0', '3076174a-6026-400e-8627-d0d98fa6e835:0', '2026-02-10 22:24:08.237905', NULL, NULL, NULL, NULL, NULL, '11:40', NULL);
+
+
+--
+-- Data for Name: connection_notifications; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (96, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'tee_time_reservation', NULL, false, '2026-01-21 16:32:58.753967', NULL, '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL, '{"teeTimeOfferId":2}', NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (2, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'request_accepted', 4, false, '2026-01-12 00:30:11.504658', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (3, 'cf43844b-7658-4fe5-96e8-ac96a614c57c', 'incoming_request', 5, false, '2026-01-12 10:57:13.232545', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (4, '84c28034-2aec-4c19-8115-44c57e3de087', 'incoming_request', 6, false, '2026-01-14 14:11:44.090251', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (5, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'incoming_request', 7, false, '2026-01-14 21:04:37.33225', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (6, 'cf43844b-7658-4fe5-96e8-ac96a614c57c', 'incoming_request', 8, false, '2026-01-14 21:12:53.777071', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (7, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'incoming_request', 9, false, '2026-01-15 16:28:39.001378', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (8, 'cf43844b-7658-4fe5-96e8-ac96a614c57c', 'incoming_request', NULL, false, '2026-01-15 19:46:24.051602', NULL, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (9, 'cf43844b-7658-4fe5-96e8-ac96a614c57c', 'request_accepted', NULL, false, '2026-01-15 18:48:24.051602', NULL, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (10, 'cf43844b-7658-4fe5-96e8-ac96a614c57c', 'request_declined', NULL, false, '2026-01-15 17:48:24.051602', NULL, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (11, 'cf43844b-7658-4fe5-96e8-ac96a614c57c', 'new_message', NULL, false, '2026-01-15 19:18:24.051602', NULL, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (12, 'cf43844b-7658-4fe5-96e8-ac96a614c57c', 'competition_entry', NULL, false, '2026-01-15 16:48:24.051602', NULL, NULL, NULL, NULL, NULL, '{"eventName": "Summer Darts Championship", "eventSlug": "summer-darts-championship"}', NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (13, 'cf43844b-7658-4fe5-96e8-ac96a614c57c', 'team_confirmed', NULL, false, '2026-01-15 15:48:24.051602', NULL, NULL, NULL, NULL, NULL, '{"eventName": "Summer Darts Championship", "eventSlug": "summer-darts-championship", "teamName": "The Arrows"}', NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (14, 'cf43844b-7658-4fe5-96e8-ac96a614c57c', 'first_match', NULL, false, '2026-01-15 14:48:24.051602', NULL, NULL, NULL, NULL, NULL, '{"eventName": "Summer Darts Championship", "eventSlug": "summer-darts-championship", "teamName": "The Arrows", "opponentName": "Bullseye Brigade", "matchNumber": 1}', NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (97, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'tee_time_reservation', NULL, false, '2026-01-21 16:34:00.488389', NULL, '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL, '{"teeTimeOfferId":2}', NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (1, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'incoming_request', 4, true, '2026-01-12 00:29:17.85605', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (15, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'incoming_request', NULL, true, '2026-01-15 19:48:07.370449', NULL, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (16, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'request_accepted', NULL, true, '2026-01-15 18:50:07.370449', NULL, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (17, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'request_declined', NULL, true, '2026-01-15 17:50:07.370449', NULL, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (18, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'new_message', NULL, true, '2026-01-15 19:20:07.370449', NULL, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (19, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'competition_entry', NULL, true, '2026-01-15 16:50:07.370449', NULL, NULL, NULL, NULL, NULL, '{"eventName": "Summer Darts Championship", "eventSlug": "summer-darts-championship"}', NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (20, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'team_confirmed', NULL, true, '2026-01-15 15:50:07.370449', NULL, NULL, NULL, NULL, NULL, '{"eventName": "Summer Darts Championship", "eventSlug": "summer-darts-championship", "teamName": "The Arrows"}', NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (21, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'first_match', NULL, true, '2026-01-15 14:50:07.370449', NULL, NULL, NULL, NULL, NULL, '{"eventName": "Summer Darts Championship", "eventSlug": "summer-darts-championship", "teamName": "The Arrows", "opponentName": "Bullseye Brigade", "matchNumber": 1}', NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (24, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'play_request_offer_withdrawn', NULL, false, '2026-01-16 15:30:39.62197', NULL, '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (25, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'play_request_offer_withdrawn', NULL, false, '2026-01-16 15:32:43.143388', NULL, '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (23, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'play_request_offer', NULL, true, '2026-01-16 15:24:38.523121', NULL, '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (28, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'play_request_offer', NULL, true, '2026-01-16 15:35:45.316917', NULL, '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (26, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'play_request_offer', NULL, true, '2026-01-16 15:34:24.704962', NULL, '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (22, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'new_message', NULL, true, '2026-01-16 10:42:04.932492', 12, '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (27, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'play_request_offer_withdrawn', NULL, true, '2026-01-16 15:35:32.98616', NULL, '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (29, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'play_request_offer_accepted', NULL, true, '2026-01-16 16:03:25.601067', NULL, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (94, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'new_message', NULL, false, '2026-01-21 15:04:43.784314', 13, '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (95, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'tee_time_reservation', NULL, false, '2026-01-21 16:22:29.45774', NULL, '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL, '{"teeTimeOfferId":2}', NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (98, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'tee_time_reservation', NULL, false, '2026-01-21 16:34:29.694418', NULL, '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL, '{"teeTimeOfferId":2}', NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (99, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'tee_time_reservation', NULL, false, '2026-01-21 16:38:49.519943', NULL, '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL, '{"teeTimeOfferId":2}', NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (100, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'tee_time_accepted', NULL, false, '2026-01-21 16:47:50.437266', NULL, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', NULL, NULL, NULL, '{"teeTimeOfferId":2}', NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (101, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'new_message', NULL, false, '2026-01-22 18:16:57.395162', 14, '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (103, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'group_membership_approved', NULL, false, '2026-01-28 22:08:42.323602', NULL, NULL, NULL, NULL, NULL, '{"groupId":"ea1dd8d2-6cfa-4226-a4dd-e5df1fe51c10","groupName":"Soccer group"}', NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (109, '84c28034-2aec-4c19-8115-44c57e3de087', 'competition_added', NULL, false, '2026-02-25 11:54:59.023745', NULL, '8df4e439-c84b-4122-8dfb-95a3815e11ed', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', NULL, NULL, '{"eventName":"Test Comp 2502","eventSlug":"test-comp-2502","eventDate":"Sat, 28 Feb 2026","eventTime":"10:00","groupSlug":"test-comp-2502","groupName":"Test Comp 2502"}', NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (110, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'competition_added', NULL, false, '2026-02-25 12:56:20.966905', NULL, '8df4e439-c84b-4122-8dfb-95a3815e11ed', '6befa9ca-8f0b-4c9c-931c-eedc2f35bdbc', NULL, NULL, '{"eventName":"2502 Second","eventSlug":"2502-second","eventDate":"Sat, 28 Feb 2026","eventTime":"10:00","groupSlug":"2502-second","groupName":"2502 Second"}', NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (111, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'play_request_offer', NULL, false, '2026-02-25 15:56:57.260921', NULL, 'cf43844b-7658-4fe5-96e8-ac96a614c57c', NULL, NULL, NULL, '{"offerId":5,"offerUserName":"CrazyKev","startDate":"2026-02-28T00:00:00.000Z","note":""}', 6);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (112, 'cf43844b-7658-4fe5-96e8-ac96a614c57c', 'play_request_offer_accepted', NULL, false, '2026-02-25 16:00:23.905127', NULL, '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL, '{"offerId":5,"requestOwnerName":"DragonFly","startDate":"2026-02-28T00:00:00.000Z","responseNote":"yes ok"}', 6);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (113, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'competition_entry', NULL, false, '2026-02-27 09:14:20.576895', NULL, NULL, '53c638c9-0c37-4627-b44b-2c7b856a0596', NULL, NULL, '{"eventName":"test","eventSlug":"test"}', NULL);
+INSERT INTO public.connection_notifications (id, user_id, type, connection_id, is_read, created_at, message_id, from_user_id, event_id, team_id, match_id, metadata, play_request_id) VALUES (114, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'competition_entry', NULL, false, '2026-02-27 09:27:31.98145', NULL, NULL, '743f79bb-2889-4e71-af9d-c0e350259471', NULL, NULL, '{"eventName":"S Test","eventSlug":"s-test"}', NULL);
+
+
+--
+-- Data for Name: contact_requests; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: event_attendees; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.event_attendees (id, event_id, user_id, created_at, status, ticket_number) VALUES ('011c5f87-97c8-4ea6-b53c-1a8c23818a2b', '5b6ed709-565c-4f0f-9ec8-95f8160ea9c6', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-02-23 11:53:15.010854', 'attending', 86465);
+
+
+--
+-- Data for Name: event_categories; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.event_categories (id, name, icon, order_index, created_at) VALUES (1, 'Music', 'calendar', 0, '2026-01-10 14:15:41.073832');
+INSERT INTO public.event_categories (id, name, icon, order_index, created_at) VALUES (2, 'Festival', 'calendar', 1, '2026-01-10 14:15:41.077126');
+INSERT INTO public.event_categories (id, name, icon, order_index, created_at) VALUES (3, 'Sports', 'calendar', 2, '2026-01-10 14:15:41.088454');
+INSERT INTO public.event_categories (id, name, icon, order_index, created_at) VALUES (5, 'Food & Drink', 'calendar', 4, '2026-01-10 14:15:41.098809');
+INSERT INTO public.event_categories (id, name, icon, order_index, created_at) VALUES (6, 'Arts & Culture', 'calendar', 5, '2026-01-10 14:15:41.101642');
+INSERT INTO public.event_categories (id, name, icon, order_index, created_at) VALUES (7, 'Family Friendly', 'calendar', 6, '2026-01-10 14:15:41.104298');
+INSERT INTO public.event_categories (id, name, icon, order_index, created_at) VALUES (8, 'Outdoor', 'calendar', 7, '2026-01-10 14:15:41.10693');
+INSERT INTO public.event_categories (id, name, icon, order_index, created_at) VALUES (4, 'Community11', 'tree', 3, '2026-01-10 14:15:41.095101');
+
+
+--
+-- Data for Name: event_entries; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b972ad1c-7f98-4722-b602-ddc1a01aabe1', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'PJ Morgan', '[]', '2026-01-13 20:54:33.488054', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e082f779-c77d-403e-826d-06bc9d7224db', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pozt-0', 'Alex Smith', NULL, '2026-01-13 21:53:54.377595', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e4c64b23-d9e5-4ede-b185-6d1c01e699a8', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pozz-1', 'Jordan Brown', NULL, '2026-01-13 21:53:54.383931', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('387852e9-37b9-4438-9bb8-d8a80b9b6e12', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp02-2', 'Taylor Wilson', NULL, '2026-01-13 21:53:54.387182', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('31d94e78-28d5-4efe-99f3-8b551a2922f5', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp07-3', 'Casey Jones', NULL, '2026-01-13 21:53:54.392609', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('eaeefb59-bfc5-4442-8bd3-628dad9778d2', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp0b-4', 'Morgan Davis', NULL, '2026-01-13 21:53:54.396258', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('56d8e4f6-22f9-4056-9150-3d117495fa02', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp0e-5', 'Riley Taylor', NULL, '2026-01-13 21:53:54.399287', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fb9af4d8-cfe2-416a-868f-eb0a6e86c98b', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp0i-6', 'Drew Anderson', NULL, '2026-01-13 21:53:54.403052', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0282531f-9515-49ad-b08c-7ab353e4337a', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp0m-7', 'Cameron White', NULL, '2026-01-13 21:53:54.407141', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6c501d00-2faf-422e-882a-767be9543b99', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp0p-8', 'Jamie Martin', NULL, '2026-01-13 21:53:54.410239', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('bab6e762-7a8e-462f-8eae-1d0c10443407', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp0t-9', 'Avery Thompson', NULL, '2026-01-13 21:53:54.414075', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3f47b2e9-4437-4407-b2cd-3049be8758ff', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp0y-10', 'Quinn Garcia', NULL, '2026-01-13 21:53:54.418622', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5954c150-99f2-405e-b6e5-73d8ea9b0c5d', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp14-11', 'Hayden Robinson', NULL, '2026-01-13 21:53:54.424601', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('db36a0c0-f059-4a34-8548-a5f11d4b5902', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp17-12', 'Peyton Clark', NULL, '2026-01-13 21:53:54.42776', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('98558d8f-d140-4ed0-8fc8-9c050a923e2a', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp1b-13', 'Skyler Lewis', NULL, '2026-01-13 21:53:54.432319', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4bb69062-d909-4b90-99c5-01d24fdb4871', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp1f-14', 'Reese Walker', NULL, '2026-01-13 21:53:54.435749', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ae19de8c-ac3c-4608-9a20-27a88e4653d2', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp1i-15', 'Finley Hall', NULL, '2026-01-13 21:53:54.4389', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('810053b3-a764-484e-8868-a03797b28f27', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp1l-16', 'Dakota Young', NULL, '2026-01-13 21:53:54.441788', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fce36370-33cb-4abe-8c48-0074e1f034f4', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp1o-17', 'Rowan King', NULL, '2026-01-13 21:53:54.444774', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e0a52177-c522-4663-b3a0-8a40d841c57a', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp1r-18', 'Sage Wright', NULL, '2026-01-13 21:53:54.448036', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('56290726-2e3f-4f66-ae95-cd9b95753bc7', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp1u-19', 'Phoenix Scott', NULL, '2026-01-13 21:53:54.450949', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6687a6b4-55de-4c40-adb5-20de06591940', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp21-20', 'River Green', NULL, '2026-01-13 21:53:54.457941', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('78a34f6d-513a-483f-9d39-2489b051567e', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp24-21', 'Blake Adams', NULL, '2026-01-13 21:53:54.461211', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('dec16039-370f-4e75-a800-449f36bb4ec4', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp27-22', 'Charlie Baker', NULL, '2026-01-13 21:53:54.463956', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5cb0c887-6825-4e75-8fb4-f17de235e640', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp2a-23', 'Emerson Nelson', NULL, '2026-01-13 21:53:54.467254', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('94456b87-29c8-4896-b37b-cc9e1f424a21', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp2d-24', 'Harper Carter', NULL, '2026-01-13 21:53:54.470154', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('60b8acb4-17b1-41e8-9d1f-d1a809770487', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp2h-25', 'Kendall Mitchell', NULL, '2026-01-13 21:53:54.473612', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('26f341c0-4778-4a68-ba90-cbcc8b82bbd4', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp2k-26', 'Logan Perez', NULL, '2026-01-13 21:53:54.476579', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8efcb6bc-0e67-433b-a190-6c71110d6b6c', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp2n-27', 'Parker Roberts', NULL, '2026-01-13 21:53:54.479519', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('038551c1-8c69-4166-a312-e57b90fbb242', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp2q-28', 'Sydney Turner', NULL, '2026-01-13 21:53:54.48294', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('559f19a9-f64f-4f6d-a023-abe9f6ce2905', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp2t-29', 'Jesse Phillips', NULL, '2026-01-13 21:53:54.485983', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('12a1dbfe-5c4e-467d-a61a-e6acc682432e', 'a2507a79-d6b9-4e1a-bb93-a88b3168510c', 'test-mkd4pp2w-30', 'Alex Smith 2', NULL, '2026-01-13 21:53:54.488635', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b4efdd02-bb44-44cc-baf9-da093331e4bc', 'ade97168-005c-4ea7-9456-d8649854b331', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'Jason Paul', '[]', '2026-01-13 23:04:35.32937', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('20515a67-bcea-47ff-9027-0f097c3f636c', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a32-0', 'Alex Smith', NULL, '2026-01-13 23:05:07.407929', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9d0c9ee8-9d2b-4e38-9a2c-1deb03ff7cb3', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a36-1', 'Jordan Brown', NULL, '2026-01-13 23:05:07.410939', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('30e1c4d3-7987-4678-a843-ca06f8865319', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a3a-2', 'Taylor Wilson', NULL, '2026-01-13 23:05:07.414674', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('54d3a9b7-4048-4922-9987-c9c066b6c6d2', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a3d-3', 'Casey Jones', NULL, '2026-01-13 23:05:07.417644', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4dc28ff4-04ac-4aaf-a256-0ba910f10b67', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a3g-4', 'Morgan Davis', NULL, '2026-01-13 23:05:07.420741', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('14ba5ee9-b7bb-45c9-81b6-83d80bea636a', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a3j-5', 'Riley Taylor', NULL, '2026-01-13 23:05:07.423483', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7da5e4ab-45e1-462c-a01e-d29a22dde6a5', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a4g-6', 'Drew Anderson', NULL, '2026-01-13 23:05:07.456792', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7228c7e8-6ddc-45c0-bf61-d5d147312917', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a4j-7', 'Cameron White', NULL, '2026-01-13 23:05:07.460427', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('604cc100-f904-4dcd-b986-c3414e89e736', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a4n-8', 'Jamie Martin', NULL, '2026-01-13 23:05:07.463728', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('747bd9d4-286d-4973-af0d-012a001404f5', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a4s-9', 'Avery Thompson', NULL, '2026-01-13 23:05:07.46853', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3026d8df-4003-42d4-94f8-1c1289c418a9', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a4v-10', 'Quinn Garcia', NULL, '2026-01-13 23:05:07.471922', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a3a6e511-3f29-40d1-b7d3-da9fedf7b7d5', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a4z-11', 'Hayden Robinson', NULL, '2026-01-13 23:05:07.476045', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9e96ccf3-0593-4193-aff2-96877fc49f82', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a53-12', 'Peyton Clark', NULL, '2026-01-13 23:05:07.480971', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('19759c0b-80d7-46d3-bffd-9ca67589bcd5', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a58-13', 'Skyler Lewis', NULL, '2026-01-13 23:05:07.484471', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a998d11e-e95b-4ad2-b3a1-737a782bc1c4', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a5c-14', 'Reese Walker', NULL, '2026-01-13 23:05:07.48916', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6a0f3b25-cd0b-42d2-bdcc-2dd2725c6ffc', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a5f-15', 'Finley Hall', NULL, '2026-01-13 23:05:07.492206', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('685ddc7a-2b79-4d02-8007-c81dab1da81c', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a5j-16', 'Dakota Young', NULL, '2026-01-13 23:05:07.495442', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7c93551d-d483-449b-be78-cdcc3a3db073', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a5m-17', 'Rowan King', NULL, '2026-01-13 23:05:07.499235', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('24a9005f-8212-46b6-9bb9-a494f30ea6ed', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a5p-18', 'Sage Wright', NULL, '2026-01-13 23:05:07.502177', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('53a6cdbb-1b8b-4a34-b81f-ad1ff6d21400', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a5t-19', 'Phoenix Scott', NULL, '2026-01-13 23:05:07.506688', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5dd4c096-e5ee-48e7-9274-086fcbe8a9fa', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a5x-20', 'River Green', NULL, '2026-01-13 23:05:07.511984', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0c37d6d4-b094-48a9-b79f-b9d197e26127', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a63-21', 'Blake Adams', NULL, '2026-01-13 23:05:07.515583', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('be46ad14-7270-426b-9bb1-1c6c8203f206', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a66-22', 'Charlie Baker', NULL, '2026-01-13 23:05:07.518971', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8261ba0c-ceb6-4836-898a-d8bb7064de34', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a68-23', 'Emerson Nelson', NULL, '2026-01-13 23:05:07.521233', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6195f095-000c-4c6a-9aab-8cedbfc07102', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a6b-24', 'Harper Carter', NULL, '2026-01-13 23:05:07.524048', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('cf919158-a446-4201-ab43-83a8c76e151e', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a6f-25', 'Kendall Mitchell', NULL, '2026-01-13 23:05:07.527723', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('67ff43f4-36d7-4037-aee7-38206d84f255', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a6i-26', 'Logan Perez', NULL, '2026-01-13 23:05:07.53059', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('19a4ba33-bd4a-41f9-9563-13b8c0bbcf28', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a6k-27', 'Parker Roberts', NULL, '2026-01-13 23:05:07.532897', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d88ba423-2f85-4779-abd8-3d0f33630344', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a6n-28', 'Sydney Turner', NULL, '2026-01-13 23:05:07.535985', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('92ff1eec-8988-4494-9297-5b58337c6beb', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a6r-29', 'Jesse Phillips', NULL, '2026-01-13 23:05:07.540031', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('874bc3fe-4fbb-417e-a4a1-dcbe69c2fdad', 'ade97168-005c-4ea7-9456-d8649854b331', 'test-mkd79a6u-30', 'Alex Smith 2', NULL, '2026-01-13 23:05:07.543037', 'confirmed', '100', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f16fd164-f70b-4daf-832a-6fc9a3d6374b', '1c60dc60-34c6-4136-be34-6b8840c6ee02', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'Team A', '[]', '2026-01-14 11:19:46.427194', 'confirmed', '25', 'individual', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('61e45644-a4d6-443e-b406-6a47f2c0880b', '70fbba6c-872c-4da5-a9e3-1530eb31793f', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'Test', '[]', '2026-01-14 11:22:53.553767', 'confirmed', '120', 'team', 6, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f32497ab-df82-40a6-9748-534e53e1b169', '8ae1b905-522c-47de-9b0f-6647bd869d81', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'bob', '[]', '2026-01-14 11:46:28.48751', 'confirmed', '66', 'individual', 3, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('126af1a1-e76b-42df-a4ab-d001a4f2767f', '36a2353b-41d6-4ff0-b193-31f7b9f4f366', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'Win111', '[]', '2026-01-14 11:59:26.818466', 'confirmed', '200', 'individual', 5, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('05000373-6397-4807-982c-8d3d1621c710', '994eed43-ba8a-49f9-b757-8dfbcbdb1436', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'test B', '[]', '2026-01-14 12:05:15.188193', 'confirmed', '33', 'individual', 3, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b7ea5b2d-c687-41d9-95ae-01216ad9786a', 'ba4480fe-6384-4197-9af5-0da765f412ff', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'asas', '[]', '2026-01-14 12:24:36.067842', 'confirmed', '22', 'team', 2, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4279ec36-7819-4a00-9a58-7a91fc6f089d', 'e5bca4ad-e552-4cec-adbc-cef95128ccf0', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'q', '[]', '2026-01-14 12:31:55.482541', 'confirmed', '33', 'individual', 3, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('96c55f99-652b-4090-a604-4c4cb4a443d9', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, '[]', '2026-01-14 12:37:51.561853', 'confirmed', '66', 'individual', 3, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('86a7e75d-a1cc-41e3-9ddd-f0bab95f5023', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew78-0', 'Alex Smith', NULL, '2026-01-14 12:41:18.213297', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('07371cca-5bcb-4617-b0bf-be4aaeffe6ea', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew7m-1', 'Jordan Brown', NULL, '2026-01-14 12:41:18.227471', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('29798f01-3dbe-42a7-b7ee-106c07f70070', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew7t-2', 'Taylor Wilson', NULL, '2026-01-14 12:41:18.234725', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c5353db6-7153-483c-8cb5-de2b86ddcaae', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew7x-3', 'Casey Jones', NULL, '2026-01-14 12:41:18.237928', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d47f1a63-9995-4e9d-add0-114a2aa84410', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew81-4', 'Morgan Davis', NULL, '2026-01-14 12:41:18.242213', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('68f2f214-776f-4863-a35e-a4af4b8c5dba', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew85-5', 'Riley Taylor', NULL, '2026-01-14 12:41:18.245963', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b2b5454f-cb56-4822-91ee-b51f9b29fbbc', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew89-6', 'Drew Anderson', NULL, '2026-01-14 12:41:18.25042', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('eec02ae5-cfa6-4bb1-a494-90a659278c07', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew8d-7', 'Cameron White', NULL, '2026-01-14 12:41:18.253457', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6a320222-70b9-48fc-9792-b5c4c1a8a863', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew8g-8', 'Jamie Martin', NULL, '2026-01-14 12:41:18.256844', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('642d3f55-72f4-443d-a434-2778b1dec4c5', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew8j-9', 'Avery Thompson', NULL, '2026-01-14 12:41:18.259997', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('18f0cb35-f7bf-4470-bb0d-a24b403b6b3b', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew8p-10', 'Quinn Garcia', NULL, '2026-01-14 12:41:18.266268', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b209373e-43d7-4c87-9e1a-0b2d31d95726', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew8t-11', 'Hayden Robinson', NULL, '2026-01-14 12:41:18.269554', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c7dd0028-f50f-4434-9879-773a5ffba39c', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew8w-12', 'Peyton Clark', NULL, '2026-01-14 12:41:18.273341', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('1c22ff7d-c54b-496d-b3ce-88bfcf89d9d7', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew8z-13', 'Skyler Lewis', NULL, '2026-01-14 12:41:18.275632', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4be425db-ee35-4ab8-b698-6283ce140dfe', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew92-14', 'Reese Walker', NULL, '2026-01-14 12:41:18.279277', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7efbc897-03be-4d3e-86a9-765d922503cd', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew96-15', 'Finley Hall', NULL, '2026-01-14 12:41:18.283335', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0d0b2a31-d1a6-42b4-a49f-bd2dfc66bab3', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew9b-16', 'Dakota Young', NULL, '2026-01-14 12:41:18.287872', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5477aac5-0f92-4b67-a4e2-c9ad082f76e7', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew9e-17', 'Rowan King', NULL, '2026-01-14 12:41:18.290994', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6c27f7bf-dc94-4d7f-a284-32358d589ddf', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew9h-18', 'Sage Wright', NULL, '2026-01-14 12:41:18.294222', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('06fdeac1-f567-47da-971a-96a871284dab', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew9k-19', 'Phoenix Scott', NULL, '2026-01-14 12:41:18.297402', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9cb92e07-c0ed-4e48-8c77-571959ef3f29', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew9o-20', 'River Green', NULL, '2026-01-14 12:41:18.301011', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('43c59d25-fbc7-4e3a-b357-6b8ffb188b20', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew9u-21', 'Blake Adams', NULL, '2026-01-14 12:41:18.307461', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('66e0e4ef-5f3d-4af5-94c6-c8a4b73d5232', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ew9z-22', 'Charlie Baker', NULL, '2026-01-14 12:41:18.312092', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('017b3614-44a1-48ca-bad3-558b94b1819b', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ewa2-23', 'Emerson Nelson', NULL, '2026-01-14 12:41:18.315334', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b5655a92-7c6d-454b-872e-d897724b64d8', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ewa5-24', 'Harper Carter', NULL, '2026-01-14 12:41:18.318185', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('29bb2cdb-1a2d-44b6-9ed9-b30a15a44b05', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ewaa-25', 'Kendall Mitchell', NULL, '2026-01-14 12:41:18.322506', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9a4bf229-07ed-426f-b300-85a58f722f78', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ewad-26', 'Logan Perez', NULL, '2026-01-14 12:41:18.325521', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('810a4c53-dfef-4392-b10f-dc552966d045', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ewag-27', 'Parker Roberts', NULL, '2026-01-14 12:41:18.329167', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('38f2a3b7-b7c3-4381-83cb-23235c5eb4c8', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ewaj-28', 'Sydney Turner', NULL, '2026-01-14 12:41:18.332604', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8e0f4091-4867-4ba7-8506-6cec30684046', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ewan-29', 'Jesse Phillips', NULL, '2026-01-14 12:41:18.335488', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fb019bbf-e1d1-4ca5-97f5-f56792fcc942', 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3', 'test-mke0ewaq-30', 'Alex Smith 2', NULL, '2026-01-14 12:41:18.338404', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ad7e88a4-ee6f-430b-9000-60736a387b46', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15la2-0', 'Alex Smith', NULL, '2026-01-14 13:02:03.771903', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4a1d3014-d99d-4620-b299-5fd159c339a5', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15la6-1', 'Jordan Brown', NULL, '2026-01-14 13:02:03.775617', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0bd32039-329f-4ca1-92d9-a2ce5d43205e', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15laa-2', 'Taylor Wilson', NULL, '2026-01-14 13:02:03.778713', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e02d5ac2-5c97-4ce6-91fa-b3e6d956b95a', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lad-3', 'Casey Jones', NULL, '2026-01-14 13:02:03.782376', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('efcb3ee4-61fe-4b28-bbbc-bbaef5e5b6e0', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lah-4', 'Morgan Davis', NULL, '2026-01-14 13:02:03.786308', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('aa83c8dd-cf35-4e4c-a8ac-afe5bc52b1e4', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lal-5', 'Riley Taylor', NULL, '2026-01-14 13:02:03.790068', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2203b681-c467-4e0d-ae89-440cf14a7365', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lao-6', 'Drew Anderson', NULL, '2026-01-14 13:02:03.793255', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('93a2ed18-66c0-4dc3-b3bf-c5acddff37ab', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15las-7', 'Cameron White', NULL, '2026-01-14 13:02:03.796464', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('50fbb581-2aa2-417f-816f-424102be6c8a', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lav-8', 'Jamie Martin', NULL, '2026-01-14 13:02:03.800151', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0ce6a3cc-e54a-4a49-b438-2899d6781423', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15laz-9', 'Avery Thompson', NULL, '2026-01-14 13:02:03.804552', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('151cee18-58e0-406b-a9bb-a584c0a6045a', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lb4-10', 'Quinn Garcia', NULL, '2026-01-14 13:02:03.808956', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b94faacc-df7a-405f-8c7a-31bc326a586f', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lb7-11', 'Hayden Robinson', NULL, '2026-01-14 13:02:03.811583', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('130b3280-a637-4e2a-a48c-77f9cfea7bbc', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lb9-12', 'Peyton Clark', NULL, '2026-01-14 13:02:03.814438', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('08fba738-e4cf-4e17-a377-9b2598183bed', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lbe-13', 'Skyler Lewis', NULL, '2026-01-14 13:02:03.818772', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('561f9101-d596-4f75-b5d0-6014617a79eb', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lbj-14', 'Reese Walker', NULL, '2026-01-14 13:02:03.823614', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8d444f0e-61fa-4fe7-ac47-ca79aac2bd02', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lbm-15', 'Finley Hall', NULL, '2026-01-14 13:02:03.826574', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ecdb2eb4-efde-4c48-8682-cc5ae5c999fd', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lbq-16', 'Dakota Young', NULL, '2026-01-14 13:02:03.830983', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2956ded5-70a0-4422-87aa-0848eabe9264', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lbv-17', 'Rowan King', NULL, '2026-01-14 13:02:03.835735', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e417c69b-ea93-4409-8184-5a2ddaf317d1', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lc0-18', 'Sage Wright', NULL, '2026-01-14 13:02:03.840664', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f0e17c16-f59b-4b01-b5ce-14171557aa8a', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lc3-19', 'Phoenix Scott', NULL, '2026-01-14 13:02:03.844226', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4c04bf69-d3f6-4619-8638-303ac50dcad7', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lc7-20', 'River Green', NULL, '2026-01-14 13:02:03.847429', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fc87427e-56a6-4a34-bc47-fce70fe03e34', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lcb-21', 'Blake Adams', NULL, '2026-01-14 13:02:03.85199', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('dd2455b3-1f67-4de4-9117-7967522d5143', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lcg-22', 'Charlie Baker', NULL, '2026-01-14 13:02:03.857171', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8eb9b3ce-f40d-40db-b047-93addbc59719', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lck-23', 'Emerson Nelson', NULL, '2026-01-14 13:02:03.861986', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3eed714c-86f3-4cb0-be8a-099ff5770eb4', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lcp-24', 'Harper Carter', NULL, '2026-01-14 13:02:03.865791', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8d774cda-a568-4e5e-861d-249d283f8344', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lct-25', 'Kendall Mitchell', NULL, '2026-01-14 13:02:03.870467', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('03d2176d-1628-45a7-ba85-00e46386e16a', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15lcz-26', 'Logan Perez', NULL, '2026-01-14 13:02:03.8763', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('450d73e7-9429-4c10-b8ab-afd937f4e312', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15ld3-27', 'Parker Roberts', NULL, '2026-01-14 13:02:03.880304', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e6fd23d9-7ee8-4378-86ec-5f373d9d8aa7', '943eb62b-6969-451f-9ed5-dc7574a21367', 'test-mke15ld8-28', 'Sydney Turner', NULL, '2026-01-14 13:02:03.884789', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f6c17e9f-ff80-42bb-90e8-227301cb2202', '943eb62b-6969-451f-9ed5-dc7574a21367', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, '[]', '2026-01-14 12:55:15.648497', 'confirmed', '33', 'individual', 3, '["84c28034-2aec-4c19-8115-44c57e3de087", "bc72fed0-afab-45cb-bbca-c8baeca541ff"]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7eaaa912-e6b0-406c-abe5-7acf176ed782', '901a5979-0fea-4495-a546-44da1b756d96', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, '[]', '2026-01-14 14:19:47.720927', 'confirmed', '33', 'individual', 3, '["84c28034-2aec-4c19-8115-44c57e3de087", "bc72fed0-afab-45cb-bbca-c8baeca541ff"]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5014fcf3-1c52-43c0-9207-8d3e29d393d5', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, '[]', '2026-01-14 14:25:49.712728', 'confirmed', '60', 'individual', 5, '["cf43844b-7658-4fe5-96e8-ac96a614c57c", "bc72fed0-afab-45cb-bbca-c8baeca541ff", "84c28034-2aec-4c19-8115-44c57e3de087", ""]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fdd70f64-6773-4f23-acd0-2f23e585124d', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4puey-0', 'Alex Smith', NULL, '2026-01-14 14:41:47.578968', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('90662305-00ad-4dfa-9bae-441e87147f4b', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4puf2-1', 'Jordan Brown', NULL, '2026-01-14 14:41:47.582613', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b4b06882-d1ac-486f-a8fe-b9ec77b51e38', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4puf4-2', 'Taylor Wilson', NULL, '2026-01-14 14:41:47.585593', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('587c8930-5dca-4136-85ce-6a0a53c431c4', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4puf7-3', 'Casey Jones', NULL, '2026-01-14 14:41:47.588423', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f8c14602-57a4-4d96-93ac-3ddfeedf2e01', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pufb-4', 'Morgan Davis', NULL, '2026-01-14 14:41:47.591707', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('18ffc620-1c57-47d5-97c2-98b47b81f451', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pufe-5', 'Riley Taylor', NULL, '2026-01-14 14:41:47.594714', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e0980d70-bcb4-4ced-9ad3-ee4aacd508f9', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pufg-6', 'Drew Anderson', NULL, '2026-01-14 14:41:47.597472', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3525fcbe-3588-494f-8ba4-cce5a805f040', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pufj-7', 'Cameron White', NULL, '2026-01-14 14:41:47.599705', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a5575edd-8c68-4809-9f20-267042907a62', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pufm-8', 'Jamie Martin', NULL, '2026-01-14 14:41:47.602837', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6af0aec7-e834-468c-9217-655b3c69227a', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pufp-9', 'Avery Thompson', NULL, '2026-01-14 14:41:47.605439', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('db41e633-44c1-4e9e-bb60-b3b89e40e42b', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pufr-10', 'Quinn Garcia', NULL, '2026-01-14 14:41:47.607699', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f0de5fdd-785e-47c1-b8d4-f07b7ece3aa1', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4puft-11', 'Hayden Robinson', NULL, '2026-01-14 14:41:47.609723', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('45422f29-7020-4b06-a4b9-84281ea1f4a0', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pufw-12', 'Peyton Clark', NULL, '2026-01-14 14:41:47.612427', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('52c266bc-ce31-4b18-8cc8-6fafafe9dee8', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pufy-13', 'Skyler Lewis', NULL, '2026-01-14 14:41:47.614433', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c35e2cfe-c0e9-4cbc-946d-433c11c9b1bf', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pug0-14', 'Reese Walker', NULL, '2026-01-14 14:41:47.616586', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fcf6dbb0-82b5-4def-88e9-0437f52d4291', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pug2-15', 'Finley Hall', NULL, '2026-01-14 14:41:47.619079', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f6e71be3-a1dd-4645-b4b7-f3e8a94b5635', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pug5-16', 'Dakota Young', NULL, '2026-01-14 14:41:47.621598', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('87d75d3a-673d-49e4-bde7-1f05c2a1bfd4', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pug7-17', 'Rowan King', NULL, '2026-01-14 14:41:47.625036', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('79480153-8697-4e6f-ac5e-8cc3d09bff02', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4puga-18', 'Sage Wright', NULL, '2026-01-14 14:41:47.626938', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('cf23d4bc-ef95-4697-9bed-0a744e1c2ed6', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pugd-19', 'Phoenix Scott', NULL, '2026-01-14 14:41:47.629653', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('42168cf5-a73e-4ef2-8728-afcfaf40091b', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pugf-20', 'River Green', NULL, '2026-01-14 14:41:47.632283', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('62179f63-57fe-43a5-9b21-c3a4445ee19b', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pugi-21', 'Blake Adams', NULL, '2026-01-14 14:41:47.634649', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3521a9a8-f711-4284-a63f-8f8edd4f21f1', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pugl-22', 'Charlie Baker', NULL, '2026-01-14 14:41:47.637597', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f46dc39f-f57a-4059-98f7-377699983000', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pugn-23', 'Emerson Nelson', NULL, '2026-01-14 14:41:47.640009', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('448abae2-f4b5-48b7-9b89-a09a5db44312', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pugq-24', 'Harper Carter', NULL, '2026-01-14 14:41:47.643076', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('097db32a-40a9-4854-87c7-2c4f004cb686', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pugs-25', 'Kendall Mitchell', NULL, '2026-01-14 14:41:47.645212', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('21cd4339-4231-4c2b-831e-93a15a7936da', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4pugx-26', 'Logan Perez', NULL, '2026-01-14 14:41:47.649742', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('24a87934-8c12-4023-9bb7-e00a6699e897', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4puh0-27', 'Parker Roberts', NULL, '2026-01-14 14:41:47.652785', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2cac712e-577b-47c2-98c3-5d2af7cf32df', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4puh3-28', 'Sydney Turner', NULL, '2026-01-14 14:41:47.656024', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('11335008-845a-49e0-9f97-f7f88b8b6446', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4puh6-29', 'Jesse Phillips', NULL, '2026-01-14 14:41:47.659382', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0c02e6bc-0ca3-4ce1-986c-52810fc778da', '39a2f081-cc81-47ed-9a44-cb5ffb52f2db', 'test-mke4puh9-30', 'Alex Smith 2', NULL, '2026-01-14 14:41:47.662186', 'confirmed', '12', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4092ee15-a39c-418f-85fa-7890e2d85616', '2f54390c-3758-4791-a877-b8e3b5dac8fd', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, '[]', '2026-01-14 15:19:09.947088', 'confirmed', '55', 'individual', 5, '["cf43844b-7658-4fe5-96e8-ac96a614c57c", "84c28034-2aec-4c19-8115-44c57e3de087", "bc72fed0-afab-45cb-bbca-c8baeca541ff", ""]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9fcadcd2-ec71-44ba-a064-9ef29f08a173', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o6f-0', 'Alex Smith', NULL, '2026-01-14 15:19:45.639428', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('86526be0-386f-4216-b6a2-6b3c6017765b', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o6j-1', 'Jordan Brown', NULL, '2026-01-14 15:19:45.643717', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('199be602-eb15-4b47-a3e9-e27307c918c4', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o6m-2', 'Taylor Wilson', NULL, '2026-01-14 15:19:45.647356', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a19efa64-6609-4fc7-9c8a-bc30b40ffee8', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o6q-3', 'Casey Jones', NULL, '2026-01-14 15:19:45.650644', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a8ca07e6-ff8f-479a-aa9f-14b46dad7584', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o6t-4', 'Morgan Davis', NULL, '2026-01-14 15:19:45.653575', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d3c6379a-a1e3-4c13-9539-e250e994e8d2', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o6v-5', 'Riley Taylor', NULL, '2026-01-14 15:19:45.655741', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('063a11bd-efa3-400d-b476-c90746f019de', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o6z-6', 'Drew Anderson', NULL, '2026-01-14 15:19:45.660657', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b07220cd-6792-48a8-a285-6a009992a640', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o73-7', 'Cameron White', NULL, '2026-01-14 15:19:45.663553', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('caf70d8f-9378-4945-a437-89d9f1dd3596', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o76-8', 'Jamie Martin', NULL, '2026-01-14 15:19:45.666374', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('833addf0-5c6b-4e84-8e07-5d3a0df17d1c', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o78-9', 'Avery Thompson', NULL, '2026-01-14 15:19:45.668571', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f37e4cd6-a1fe-4c36-9640-1e25e534bd07', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o7a-10', 'Quinn Garcia', NULL, '2026-01-14 15:19:45.671225', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f2f50795-caa2-450c-876b-1accc7b6a817', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o7e-11', 'Hayden Robinson', NULL, '2026-01-14 15:19:45.674453', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2f2bb96e-8fe0-48db-bdaa-ee172b3b5e7c', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o7g-12', 'Peyton Clark', NULL, '2026-01-14 15:19:45.677327', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9150a392-819e-4e98-bb49-72f2bcea931d', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o7j-13', 'Skyler Lewis', NULL, '2026-01-14 15:19:45.680158', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e5e9af36-2cc0-41a9-80eb-0ef2ef9d6bf1', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o7m-14', 'Reese Walker', NULL, '2026-01-14 15:19:45.683106', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9f2205a2-b7c9-47be-bb99-7b9726785f07', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o7p-15', 'Finley Hall', NULL, '2026-01-14 15:19:45.68554', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2d070de6-fe2c-45c0-9bfe-7f81738d3839', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o7s-16', 'Dakota Young', NULL, '2026-01-14 15:19:45.688446', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2f2a6940-08ec-4b2e-8bd3-0a6ad3e3850c', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o7u-17', 'Rowan King', NULL, '2026-01-14 15:19:45.691029', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9e89a519-e383-47c7-a791-fae5009760c5', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o7x-18', 'Sage Wright', NULL, '2026-01-14 15:19:45.693653', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7b71c97c-810e-44db-a5bb-3eddf4bdc41b', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o80-19', 'Phoenix Scott', NULL, '2026-01-14 15:19:45.697819', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('eeb349a8-211d-4962-a36b-e3d5c8893bd0', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o83-20', 'River Green', NULL, '2026-01-14 15:19:45.700024', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f3d98fea-2535-43c5-9b1d-59dab9408b7e', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o86-21', 'Blake Adams', NULL, '2026-01-14 15:19:45.702728', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2c43a0b6-119a-43e8-92fd-ce9655b40131', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o89-22', 'Charlie Baker', NULL, '2026-01-14 15:19:45.705526', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9162c7a3-2434-46fc-931f-a1fddbd0ea92', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o8b-23', 'Emerson Nelson', NULL, '2026-01-14 15:19:45.70827', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a9c79ead-4e25-43b6-a37a-950c42d85999', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o8e-24', 'Harper Carter', NULL, '2026-01-14 15:19:45.710298', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a7816863-d25d-4312-a6b2-46c25de1e83f', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o8g-25', 'Kendall Mitchell', NULL, '2026-01-14 15:19:45.712343', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b22ee1d2-9869-49df-8887-b9990b0d0161', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o8i-26', 'Logan Perez', NULL, '2026-01-14 15:19:45.714927', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e428d958-8fca-4a50-9273-6155888f782a', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o8l-27', 'Parker Roberts', NULL, '2026-01-14 15:19:45.717562', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('78e35491-3a5f-4770-8768-a4b536f82622', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o8n-28', 'Sydney Turner', NULL, '2026-01-14 15:19:45.720167', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b8a737c4-a44c-4c8f-89a6-901900558bfc', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o8r-29', 'Jesse Phillips', NULL, '2026-01-14 15:19:45.723775', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('1b096b43-124e-496a-941d-98a39a4f60e4', '2f54390c-3758-4791-a877-b8e3b5dac8fd', 'test-mke62o8t-30', 'Alex Smith 2', NULL, '2026-01-14 15:19:45.726142', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('74a55583-eb30-4f9f-9636-dfa6b87fd6db', '920789d8-2059-4991-81e0-4931b95752d9', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, '[]', '2026-01-14 15:41:26.891291', 'confirmed', '60', 'individual', 3, '["bc72fed0-afab-45cb-bbca-c8baeca541ff", "84c28034-2aec-4c19-8115-44c57e3de087"]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fa6f7935-d654-45f1-857c-6820025da258', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsf8-0', 'Alex Smith', NULL, '2026-01-14 15:43:10.821186', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b309cd12-b296-4011-809e-da9a4b0e0253', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsfw-1', 'Jordan Brown', NULL, '2026-01-14 15:43:10.844815', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('759f8548-7f5e-4ff6-89f4-beb185518ad7', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsfz-2', 'Taylor Wilson', NULL, '2026-01-14 15:43:10.848293', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('614fe004-9e9f-40c0-b744-b8a8fd303dd8', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsg3-3', 'Casey Jones', NULL, '2026-01-14 15:43:10.851648', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('652e337b-f119-4a8a-aeb4-e02a1e2708f9', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsg7-4', 'Morgan Davis', NULL, '2026-01-14 15:43:10.856272', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a61edfbb-e873-4cd0-92e5-2800398d44f1', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsgb-5', 'Riley Taylor', NULL, '2026-01-14 15:43:10.859715', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b2a32e7b-eaf0-4ca8-a453-5f3fd2939770', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsge-6', 'Drew Anderson', NULL, '2026-01-14 15:43:10.86309', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4540b0e9-dffb-4809-bdc3-c98caaf8503f', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsgh-7', 'Cameron White', NULL, '2026-01-14 15:43:10.866159', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d65ae611-6ff6-4800-b5c6-ed8a8cf67da4', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsgk-8', 'Jamie Martin', NULL, '2026-01-14 15:43:10.869219', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c7880f70-383a-4522-97b8-5600ceb9935d', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsgn-9', 'Avery Thompson', NULL, '2026-01-14 15:43:10.872334', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3167009d-524a-45ce-80f3-cae6debf844c', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsgq-10', 'Quinn Garcia', NULL, '2026-01-14 15:43:10.87518', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('90cf738c-8fa6-4a5b-8a07-1288c0f7957f', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsgt-11', 'Hayden Robinson', NULL, '2026-01-14 15:43:10.877999', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a379457f-b642-4810-ad91-950114d8da8e', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsgw-12', 'Peyton Clark', NULL, '2026-01-14 15:43:10.880596', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('bcb03f90-2305-4f99-adac-07b8e33dd162', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsh2-13', 'Skyler Lewis', NULL, '2026-01-14 15:43:10.886712', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('29c2714d-4688-4fe8-9205-75e325532963', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsh5-14', 'Reese Walker', NULL, '2026-01-14 15:43:10.889811', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d2a5a0e4-94a8-4e92-9e34-4dd817668f28', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsh8-15', 'Finley Hall', NULL, '2026-01-14 15:43:10.893203', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4239c3b2-6315-4657-a8f9-37c3a1546cbc', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wshc-16', 'Dakota Young', NULL, '2026-01-14 15:43:10.896768', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4eca908a-6d6d-4070-af7d-d9e06e368d37', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wshg-17', 'Rowan King', NULL, '2026-01-14 15:43:10.900815', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5030d1f6-8345-40c5-af98-0efda3571be0', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wshj-18', 'Sage Wright', NULL, '2026-01-14 15:43:10.904004', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6a81a9b9-d72e-4fa4-a9ce-a42f9fea3e41', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wshm-19', 'Phoenix Scott', NULL, '2026-01-14 15:43:10.907526', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b578c87c-9899-4f0a-83d9-45f27c12bc98', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wshq-20', 'River Green', NULL, '2026-01-14 15:43:10.910752', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9c6cad07-9b8c-4815-ae4c-8714198d98bd', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsht-21', 'Blake Adams', NULL, '2026-01-14 15:43:10.913667', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('bf04a8ae-55df-42bf-8aaa-36834281dbae', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wshx-22', 'Charlie Baker', NULL, '2026-01-14 15:43:10.917925', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e5942181-3466-4e7f-948d-6babd393faee', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsi0-23', 'Emerson Nelson', NULL, '2026-01-14 15:43:10.920852', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ca849caf-bf8d-4db6-a664-9aa27e6b529b', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsi2-24', 'Harper Carter', NULL, '2026-01-14 15:43:10.922875', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('48481a98-7636-47ea-870b-9d1c8269a160', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsi5-25', 'Kendall Mitchell', NULL, '2026-01-14 15:43:10.925669', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a39ff8d8-4243-4b9a-bb86-70b8fa2f874f', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsi8-26', 'Logan Perez', NULL, '2026-01-14 15:43:10.928703', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d1fbb809-9efd-4c1c-884c-0d02745d8a89', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsic-27', 'Parker Roberts', NULL, '2026-01-14 15:43:10.932708', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3c1f310b-f2f5-4dc0-9987-0086a7904871', '920789d8-2059-4991-81e0-4931b95752d9', 'test-mke6wsif-28', 'Sydney Turner', NULL, '2026-01-14 15:43:10.935761', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('50f972bf-5f21-4b56-aee8-cd0a0e77f615', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ojyy-0', 'Alex Smith', NULL, '2026-01-14 16:04:46.235008', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('15a33305-a2c2-48bd-906c-e7cb25a377e6', 'bc768859-08b3-4032-8484-bef764577794', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, '[]', '2026-01-14 16:00:51.179394', 'confirmed', '60', 'individual', 3, '["bc72fed0-afab-45cb-bbca-c8baeca541ff", "84c28034-2aec-4c19-8115-44c57e3de087"]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('28754522-f9f5-4179-a613-27aa1795ecda', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ojzq-1', 'Jordan Brown', NULL, '2026-01-14 16:04:46.262805', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5f07fc15-e60c-4727-a35c-6285f0bcefa5', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ojzx-2', 'Taylor Wilson', NULL, '2026-01-14 16:04:46.270247', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('65f32214-9e25-4731-94bf-e5fe52954364', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok00-3', 'Casey Jones', NULL, '2026-01-14 16:04:46.272855', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d1d02191-40ce-4541-9d8b-c4ad6b67e085', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok03-4', 'Morgan Davis', NULL, '2026-01-14 16:04:46.275604', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('89c7f876-4bd6-4e2b-bf94-b3efdf467031', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok06-5', 'Riley Taylor', NULL, '2026-01-14 16:04:46.278592', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('01ec0f04-095c-44d7-b12d-e974671c5469', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok08-6', 'Drew Anderson', NULL, '2026-01-14 16:04:46.281292', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ad9afdac-0585-49b6-88b4-cfef49ab6507', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok0b-7', 'Cameron White', NULL, '2026-01-14 16:04:46.283764', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('47f0f0bb-77ac-4ffc-b195-6d0344c96893', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok0d-8', 'Jamie Martin', NULL, '2026-01-14 16:04:46.285775', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fdd7bcb3-eafa-4297-b4ab-714974a008fc', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok0g-9', 'Avery Thompson', NULL, '2026-01-14 16:04:46.288824', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4765e22a-bb04-47fd-9394-9c57d1d8eb75', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok0j-10', 'Quinn Garcia', NULL, '2026-01-14 16:04:46.291665', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f25d025e-d325-4c86-af23-8a80b72c0a73', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok0l-11', 'Hayden Robinson', NULL, '2026-01-14 16:04:46.293484', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d38369a4-4ec1-4140-b371-1cf2cb4840cd', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok0n-12', 'Peyton Clark', NULL, '2026-01-14 16:04:46.295351', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3b032f7d-3f83-44b1-b7bd-d1d9bb61dbbe', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok0p-13', 'Skyler Lewis', NULL, '2026-01-14 16:04:46.298204', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0116a672-2a89-4e42-908f-99d06c73e92b', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok0r-14', 'Reese Walker', NULL, '2026-01-14 16:04:46.300191', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('79c09fef-8f04-4ace-82c5-567fda39b1e7', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok0t-15', 'Finley Hall', NULL, '2026-01-14 16:04:46.302268', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3431f1ec-b0ea-4fed-9404-5ea55de484b5', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok0w-16', 'Dakota Young', NULL, '2026-01-14 16:04:46.304336', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fac32a53-20ac-4147-a9eb-04fe53dc3402', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok1g-17', 'Rowan King', NULL, '2026-01-14 16:04:46.324449', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4c4cbfab-dee2-45f1-8c68-952d10ca5a34', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok1i-18', 'Sage Wright', NULL, '2026-01-14 16:04:46.326772', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f93cfe97-6cd0-4907-b093-ade52767195e', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok1l-19', 'Phoenix Scott', NULL, '2026-01-14 16:04:46.329722', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('11d00b46-ea21-48eb-b6ec-a5774c560ce2', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok1r-20', 'River Green', NULL, '2026-01-14 16:04:46.335378', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('dac65e88-d257-456d-83a0-8547ee269f58', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok1t-21', 'Blake Adams', NULL, '2026-01-14 16:04:46.33818', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('36dd7b65-3e18-4cc9-940a-82fa727778c5', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok1w-22', 'Charlie Baker', NULL, '2026-01-14 16:04:46.340719', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0a09b89f-a055-4596-ad66-4d0afd7df251', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok1z-23', 'Emerson Nelson', NULL, '2026-01-14 16:04:46.34354', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('05753e47-15ab-4f59-8bd8-9ba9614f9989', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok21-24', 'Harper Carter', NULL, '2026-01-14 16:04:46.346294', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('eb7b30e8-9b57-457d-9c74-a75af821cead', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok27-25', 'Kendall Mitchell', NULL, '2026-01-14 16:04:46.352239', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8450ddf4-7008-4eae-809f-35c89827d376', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok2a-26', 'Logan Perez', NULL, '2026-01-14 16:04:46.354898', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('eb8ca8df-4e67-4df3-ac3c-4072a3e9443e', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok2c-27', 'Parker Roberts', NULL, '2026-01-14 16:04:46.35661', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ba6cdeaa-4f5d-462d-9de3-2e4024e19d3d', 'bc768859-08b3-4032-8484-bef764577794', 'test-mke7ok2e-28', 'Sydney Turner', NULL, '2026-01-14 16:04:46.359214', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('38aed938-6ed1-4111-b145-4bb45806c032', '9bffed5c-15e9-40dc-9da8-3d892c02195d', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, '[]', '2026-01-14 16:08:31.126981', 'confirmed', '60', 'individual', 2, '["bc72fed0-afab-45cb-bbca-c8baeca541ff"]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fd00fa85-3f30-4e81-93a2-5a65ac7b52d2', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzah-0', 'Alex Smith', NULL, '2026-01-14 16:08:59.37016', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('870f8905-96e3-4283-a77c-dbe627b3f044', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzak-1', 'Jordan Brown', NULL, '2026-01-14 16:08:59.373006', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('14b49749-d092-4ee0-a046-29cbcd79ef23', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzan-2', 'Taylor Wilson', NULL, '2026-01-14 16:08:59.375646', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c477a80e-68fd-4aeb-a58a-21187234cf51', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzap-3', 'Casey Jones', NULL, '2026-01-14 16:08:59.377926', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a126c69b-f211-4cc6-92be-eefdaaaed55e', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzas-4', 'Morgan Davis', NULL, '2026-01-14 16:08:59.380707', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('bdea768f-6be3-496e-9060-116a9c659568', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzau-5', 'Riley Taylor', NULL, '2026-01-14 16:08:59.382949', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('73fb1a2a-19c7-4805-9d4c-eab6b7c25c0d', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzax-6', 'Drew Anderson', NULL, '2026-01-14 16:08:59.385561', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('838045d9-732c-44c8-a066-38229790372a', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzb0-7', 'Cameron White', NULL, '2026-01-14 16:08:59.388301', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8d3953e8-5af6-4f66-af24-f4c2f84cdb57', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzb2-8', 'Jamie Martin', NULL, '2026-01-14 16:08:59.39133', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('35f5348e-21af-4b70-95e1-5137b8e53d77', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzb5-9', 'Avery Thompson', NULL, '2026-01-14 16:08:59.394205', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e16d233b-00a0-4f1c-83c6-9fb322089c4c', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzb8-10', 'Quinn Garcia', NULL, '2026-01-14 16:08:59.39716', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('90fbae02-2135-4cb1-aae4-6239e084d105', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzbb-11', 'Hayden Robinson', NULL, '2026-01-14 16:08:59.400086', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('caf6c67a-e0be-405f-9cfd-bf437757df4a', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzbe-12', 'Peyton Clark', NULL, '2026-01-14 16:08:59.402838', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('38a54f95-0ba9-458f-ae6c-c380b30a4178', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzbh-13', 'Skyler Lewis', NULL, '2026-01-14 16:08:59.406185', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('234720b6-fc38-47f0-9557-c24b2262cd97', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzbk-14', 'Reese Walker', NULL, '2026-01-14 16:08:59.4091', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('92d4147b-5109-4349-a5bf-a6e7a9b5af0e', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzbm-15', 'Finley Hall', NULL, '2026-01-14 16:08:59.411249', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e2872e67-286d-4b76-a803-0ec35eb39649', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzbq-16', 'Dakota Young', NULL, '2026-01-14 16:08:59.414299', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a8523ab3-1748-4a7f-b9ce-c4ceef908e85', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzbs-17', 'Rowan King', NULL, '2026-01-14 16:08:59.417684', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ad5fe065-1084-411b-99cf-394a621370ba', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzbw-18', 'Sage Wright', NULL, '2026-01-14 16:08:59.420692', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('89cb7b6e-5be4-40d2-b819-54a703c32967', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzby-19', 'Phoenix Scott', NULL, '2026-01-14 16:08:59.42315', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b81d02be-b497-4059-b9ab-6272c0fc0bb8', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzc1-20', 'River Green', NULL, '2026-01-14 16:08:59.426123', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0ea4bd6b-1426-42a3-9302-a26b77481f07', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzc4-21', 'Blake Adams', NULL, '2026-01-14 16:08:59.428674', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ea828574-c89a-4f99-924e-535fa39417aa', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzc7-22', 'Charlie Baker', NULL, '2026-01-14 16:08:59.431617', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a45c24f0-15d8-4c2e-8011-30268bdf8576', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzcb-23', 'Emerson Nelson', NULL, '2026-01-14 16:08:59.435501', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6db0f305-ac86-4c9d-9eeb-9d9cad521353', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzcd-24', 'Harper Carter', NULL, '2026-01-14 16:08:59.437733', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('dbae9b8c-04a4-4396-9062-2192b1615728', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzcf-25', 'Kendall Mitchell', NULL, '2026-01-14 16:08:59.439548', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('884d4d4f-1060-4bc4-a268-d5df233d5f73', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzch-26', 'Logan Perez', NULL, '2026-01-14 16:08:59.441329', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7b65c1dd-ecdf-4db1-bb3c-6c6422a0884b', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzcj-27', 'Parker Roberts', NULL, '2026-01-14 16:08:59.444189', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('65a86eaf-5785-4cbf-8005-750f7bfc58da', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzcm-28', 'Sydney Turner', NULL, '2026-01-14 16:08:59.447352', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('766c2f50-e87a-4d48-9c5c-410c0676da29', '9bffed5c-15e9-40dc-9da8-3d892c02195d', 'test-mke7tzcp-29', 'Jesse Phillips', NULL, '2026-01-14 16:08:59.450506', 'confirmed', '30', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('443b8ced-65a6-427c-834c-884b4c4f9be9', '57675f9d-62ba-4214-b268-567267dbefbd', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'PJ Team', '[]', '2026-01-14 22:31:54.130681', 'confirmed', '40', 'team', 2, '["84c28034-2aec-4c19-8115-44c57e3de087"]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('98ac1c33-732e-4579-91a1-ac8fe8f0ef3d', '57675f9d-62ba-4214-b268-567267dbefbd', 'test-mkelj908-0', 'Alex Smith', NULL, '2026-01-14 22:32:33.370375', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('1c04d465-b3d7-4c5c-bf26-b73e441f0067', '57675f9d-62ba-4214-b268-567267dbefbd', 'test-mkelj91j-1', 'Jordan Brown', NULL, '2026-01-14 22:32:33.415551', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2ea8b240-95e6-433d-b87a-3ee03a304789', '57675f9d-62ba-4214-b268-567267dbefbd', 'test-mkelj91n-2', 'Taylor Wilson', NULL, '2026-01-14 22:32:33.420415', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7571b549-8009-445c-9e0d-f9f318a21fc0', '57675f9d-62ba-4214-b268-567267dbefbd', 'test-mkelj91q-3', 'Casey Jones', NULL, '2026-01-14 22:32:33.423028', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e434700b-1c07-42c7-a240-301971e037b2', '57675f9d-62ba-4214-b268-567267dbefbd', 'test-mkelj91u-4', 'Morgan Davis', NULL, '2026-01-14 22:32:33.427243', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a8d55999-d03d-48eb-a331-79f478a5b156', '57675f9d-62ba-4214-b268-567267dbefbd', 'test-mkelj91x-5', 'Riley Taylor', NULL, '2026-01-14 22:32:33.430285', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a48fb293-978c-46d2-8e38-ae16b2897ee9', '57675f9d-62ba-4214-b268-567267dbefbd', 'test-mkelj920-6', 'Drew Anderson', NULL, '2026-01-14 22:32:33.433205', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('31b8d5a1-2e37-49e3-8399-5826f7953381', '57675f9d-62ba-4214-b268-567267dbefbd', 'test-mkelj925-7', 'Cameron White', NULL, '2026-01-14 22:32:33.43749', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c4c6b2e0-949c-4ee4-9f75-fce0221dcea2', '57675f9d-62ba-4214-b268-567267dbefbd', 'test-mkelj927-8', 'Jamie Martin', NULL, '2026-01-14 22:32:33.440354', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('65733e7b-e8df-48e7-8e7c-7df49348a526', '57675f9d-62ba-4214-b268-567267dbefbd', 'test-mkelj92a-9', 'Avery Thompson', NULL, '2026-01-14 22:32:33.443385', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('24e4527e-f6a1-43c3-a1c7-178ba3d1ed35', '57675f9d-62ba-4214-b268-567267dbefbd', 'test-mkelj92e-10', 'Quinn Garcia', NULL, '2026-01-14 22:32:33.446407', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('14f6ac4d-9bc6-45da-b34f-a50509fed9af', '57675f9d-62ba-4214-b268-567267dbefbd', 'test-mkelj92g-11', 'Hayden Robinson', NULL, '2026-01-14 22:32:33.449381', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2aa8f23d-8963-4abc-8d4f-8b1376ebf4b2', '57675f9d-62ba-4214-b268-567267dbefbd', 'test-mkelj92k-12', 'Peyton Clark', NULL, '2026-01-14 22:32:33.452505', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0c5c9f94-2a42-4b27-8925-13d2bfe0a502', '57675f9d-62ba-4214-b268-567267dbefbd', 'test-mkelj92n-13', 'Skyler Lewis', NULL, '2026-01-14 22:32:33.455943', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('62097792-3ae4-4c2d-afaf-8e8de1c834f0', '2a1b7825-9c81-4a55-a609-d547e99a1df6', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, '[]', '2026-01-15 16:27:07.715336', 'confirmed', '60', 'individual', 3, '["84c28034-2aec-4c19-8115-44c57e3de087", "bc72fed0-afab-45cb-bbca-c8baeca541ff"]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('75ad922c-fccc-47a5-b14f-2dc967bcba2c', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jhj-0', 'Alex Smith', NULL, '2026-01-15 16:32:05.481748', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('70fabcff-3391-4aee-9afe-44e4c47282b2', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jjx-1', 'Jordan Brown', NULL, '2026-01-15 16:32:05.566481', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c51e6004-3937-4d2a-82ad-087e1989ccf9', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jk2-2', 'Taylor Wilson', NULL, '2026-01-15 16:32:05.572077', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('98f8a391-03ac-46c0-891d-3265a6d3925e', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jki-3', 'Casey Jones', NULL, '2026-01-15 16:32:05.587578', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d0b7be19-2dd6-468e-a29a-cd37ffdc98d9', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jkm-4', 'Morgan Davis', NULL, '2026-01-15 16:32:05.591058', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('87eb2b46-fa07-4846-a93f-ef20aee7f7c8', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jkp-5', 'Riley Taylor', NULL, '2026-01-15 16:32:05.593954', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fb1acc39-5637-4069-b01e-b7c681dfa9e5', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jkv-6', 'Drew Anderson', NULL, '2026-01-15 16:32:05.599621', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('377301fb-3b88-46d5-9712-5939b3149320', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jkz-7', 'Cameron White', NULL, '2026-01-15 16:32:05.604051', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('38dd2a78-b85e-4c25-8e1d-09f940c26554', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jl3-8', 'Jamie Martin', NULL, '2026-01-15 16:32:05.608078', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('24e706d0-cd28-47c1-820c-1d9fb9081013', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jl7-9', 'Avery Thompson', NULL, '2026-01-15 16:32:05.612294', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d3d527b9-1652-43f6-9fe9-32f97c8d4214', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jlf-10', 'Quinn Garcia', NULL, '2026-01-15 16:32:05.619656', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e8358d0e-bccb-400c-bd8f-b6f73b2f516f', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jlj-11', 'Hayden Robinson', NULL, '2026-01-15 16:32:05.623578', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5391384f-b6ef-4434-8dbc-e2c528489f47', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jln-12', 'Peyton Clark', NULL, '2026-01-15 16:32:05.627758', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('1a8ef7fa-90ca-4d57-99a5-b4d295a1aa10', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jlr-13', 'Skyler Lewis', NULL, '2026-01-15 16:32:05.6317', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4cf8fc0b-174b-4dd2-b999-5d82a25933cf', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jlu-14', 'Reese Walker', NULL, '2026-01-15 16:32:05.63601', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ebb20a21-c49c-434d-9209-2fb21551639c', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jly-15', 'Finley Hall', NULL, '2026-01-15 16:32:05.638819', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a70cd961-0514-4f5c-8a9a-f378abc99e03', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jm1-16', 'Dakota Young', NULL, '2026-01-15 16:32:05.642342', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('15b33573-4f26-4cf5-8311-eb8995d3e358', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jm5-17', 'Rowan King', NULL, '2026-01-15 16:32:05.645968', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ca93bb47-a3fe-42a1-a3d0-0ce513f33cd8', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jmb-18', 'Sage Wright', NULL, '2026-01-15 16:32:05.652371', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('27907eba-f24c-4ed9-b800-58ab8af5c1e3', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jmf-19', 'Phoenix Scott', NULL, '2026-01-15 16:32:05.656449', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c14ebb2c-8c31-40ea-95c8-bf22175905b4', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jmi-20', 'River Green', NULL, '2026-01-15 16:32:05.659457', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d92acccc-7bc8-4dc7-8402-3fd7f0ee86e0', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jmm-21', 'Blake Adams', NULL, '2026-01-15 16:32:05.663364', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('cffc0a6a-d31a-47fe-bbf5-a3994605848e', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jmq-22', 'Charlie Baker', NULL, '2026-01-15 16:32:05.666781', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('47c1abce-9584-4fa1-aca9-7ebe7c9a5eda', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jmu-23', 'Emerson Nelson', NULL, '2026-01-15 16:32:05.670917', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9a8b5634-8cf3-4e24-8f83-2b6511079104', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jmy-24', 'Harper Carter', NULL, '2026-01-15 16:32:05.674723', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c2dba450-a115-4693-8680-94f69a8ce21a', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jn2-25', 'Kendall Mitchell', NULL, '2026-01-15 16:32:05.678459', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('90f4be51-65ea-4f55-a6fc-ec47952868c5', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jn5-26', 'Logan Perez', NULL, '2026-01-15 16:32:05.681718', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8f096f9e-0970-4f82-a638-8231f3dae6f0', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jn8-27', 'Parker Roberts', NULL, '2026-01-15 16:32:05.68498', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4e29916b-0767-44ab-a6c6-d56e0e6ceeeb', '2a1b7825-9c81-4a55-a609-d547e99a1df6', 'test-mkfo3jnb-28', 'Sydney Turner', NULL, '2026-01-15 16:32:05.688205', 'confirmed', '20', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('334951ff-6756-42a3-b47d-50c0b99bfd05', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, '[]', '2026-01-19 23:49:18.176609', 'confirmed', NULL, 'individual', 2, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('69adb636-92ce-49ea-99dd-49880ad7bb24', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps1e-0', 'Alex Smith', NULL, '2026-01-19 23:55:58.132125', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f5bedad9-5754-4cd9-a112-003c51eb75ae', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps2h-1', 'Jordan Brown', NULL, '2026-01-19 23:55:58.169975', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b4eed765-8226-4391-8427-754f196e1c08', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps2l-2', 'Taylor Wilson', NULL, '2026-01-19 23:55:58.174189', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5918e7d9-840d-4795-aa25-7c942d70aa83', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps2p-3', 'Casey Jones', NULL, '2026-01-19 23:55:58.178422', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('218a2916-9d74-4005-87c1-e0b32ef9ab40', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps2t-4', 'Morgan Davis', NULL, '2026-01-19 23:55:58.182489', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('12fc37e5-47d2-42ba-8352-f7adb7d3abde', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps2x-5', 'Riley Taylor', NULL, '2026-01-19 23:55:58.186224', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ddcc89c0-993f-4f82-9fea-fd3d40cc86fd', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps30-6', 'Drew Anderson', NULL, '2026-01-19 23:55:58.189141', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('1c92208c-0f9d-49fc-96f9-b3e1a2f26b36', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps34-7', 'Cameron White', NULL, '2026-01-19 23:55:58.192633', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7e6d9e2c-a5cd-4561-b86e-8dade6618207', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps37-8', 'Jamie Martin', NULL, '2026-01-19 23:55:58.196116', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('46f3cc1b-4b01-4bfb-bb93-e00778cd2ddd', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps3b-9', 'Avery Thompson', NULL, '2026-01-19 23:55:58.199796', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8b1c081e-23eb-46c2-8d8d-eadcfa53a432', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps3e-10', 'Quinn Garcia', NULL, '2026-01-19 23:55:58.202926', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4bf2e364-32ae-4939-9811-173e6fced622', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps3h-11', 'Hayden Robinson', NULL, '2026-01-19 23:55:58.206088', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5688c369-27f4-45c1-9422-dee3d396e8c9', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps3k-12', 'Peyton Clark', NULL, '2026-01-19 23:55:58.209224', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d72af6d0-bab3-4757-9fcb-6127131b51ff', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps3o-13', 'Skyler Lewis', NULL, '2026-01-19 23:55:58.212691', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('95df3cb8-1ee5-410e-9dfd-1dc1ea30ec69', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps3r-14', 'Reese Walker', NULL, '2026-01-19 23:55:58.216114', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('15472124-ea5b-4ec6-b3a2-f393e74c2b6c', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps3u-15', 'Finley Hall', NULL, '2026-01-19 23:55:58.218804', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('baa0b946-ac2e-4698-b570-7c18fd9450ad', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps3x-16', 'Dakota Young', NULL, '2026-01-19 23:55:58.221996', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e914525d-c835-4573-8a21-a86cd98e2acd', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps41-17', 'Rowan King', NULL, '2026-01-19 23:55:58.225868', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b5c69342-5c35-4c78-b6cf-44a209db177f', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps45-18', 'Sage Wright', NULL, '2026-01-19 23:55:58.229605', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ad563bdc-07e3-4cdc-a44f-95233bc0dac1', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps4s-19', 'Phoenix Scott', NULL, '2026-01-19 23:55:58.253554', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('abd77ef5-6efa-4987-b3c0-c4783376a4b5', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps4w-20', 'River Green', NULL, '2026-01-19 23:55:58.257096', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9c3f02e4-bc95-419e-9ad4-123d153b95c3', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps50-21', 'Blake Adams', NULL, '2026-01-19 23:55:58.260798', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8ca90509-e874-4edc-82bc-beb823666d70', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps53-22', 'Charlie Baker', NULL, '2026-01-19 23:55:58.264056', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('1bb411ee-da27-49c5-b94b-222e9a81d877', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps57-23', 'Emerson Nelson', NULL, '2026-01-19 23:55:58.26756', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('bde176d8-d7b4-46bc-9a5a-4daed1ea3367', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps5a-24', 'Harper Carter', NULL, '2026-01-19 23:55:58.271287', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c557a5ce-9593-4ef3-b1a4-a64bda4deb9d', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps5e-25', 'Kendall Mitchell', NULL, '2026-01-19 23:55:58.274996', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('88160493-5f9d-4805-976d-0efeff3279c6', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps5h-26', 'Logan Perez', NULL, '2026-01-19 23:55:58.278282', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('607ab39a-54ec-437a-94ff-d4c79a62c327', 'ed1622d2-978f-4d12-a4be-4ca042304e1c', 'test-mkltps5l-27', 'Parker Roberts', NULL, '2026-01-19 23:55:58.282565', 'confirmed', NULL, 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('27e578b5-03c4-4be5-b79f-23289a4e3d8c', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, '[]', '2026-01-20 00:11:48.023264', 'confirmed', '11', 'individual', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3c39758a-c19d-4c87-9884-c43dda343bc4', '87ea9e00-8881-4332-8d31-ce8d3e053b93', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, '[]', '2026-01-20 00:25:19.375493', 'confirmed', '75', 'individual', 3, '["bc72fed0-afab-45cb-bbca-c8baeca541ff", "84c28034-2aec-4c19-8115-44c57e3de087"]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('147b9678-ee53-4e60-a0c0-f0c8a9c96fa2', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6ksj-0', 'Alex Smith', NULL, '2026-01-20 09:56:53.829654', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9f21714f-a7af-491f-bde2-cef0aeb4d6ec', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kup-1', 'Jordan Brown', NULL, '2026-01-20 09:56:53.91075', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7b53546f-6989-4053-8c2f-bf549ee17e09', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kux-2', 'Taylor Wilson', NULL, '2026-01-20 09:56:53.913854', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('85a0f9c9-5aa6-4965-b17c-913b4226f010', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kv5-3', 'Casey Jones', NULL, '2026-01-20 09:56:53.922082', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('52c35828-fc61-4694-bb57-73880afd0b15', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kvn-4', 'Morgan Davis', NULL, '2026-01-20 09:56:53.940705', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5097c96c-eb65-4035-b1c7-cdb342697196', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kvr-5', 'Riley Taylor', NULL, '2026-01-20 09:56:53.944532', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('933892ed-f68d-4fdf-bc0d-34c5fc69b36d', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kvu-6', 'Drew Anderson', NULL, '2026-01-20 09:56:53.94725', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2c54af28-8544-4125-8700-52a49bd0b1a2', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kvx-7', 'Cameron White', NULL, '2026-01-20 09:56:53.950573', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d471d7fe-d504-4eda-b431-b78a170e9689', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kw0-8', 'Jamie Martin', NULL, '2026-01-20 09:56:53.953056', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a8202bb4-026b-4f86-81bc-c684a7860c2c', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kw4-9', 'Avery Thompson', NULL, '2026-01-20 09:56:53.958783', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b9e69247-092c-4023-8cab-2692cfa58f3e', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kw9-10', 'Quinn Garcia', NULL, '2026-01-20 09:56:53.962489', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b4b80217-59ec-441d-abba-2c780cec7ff7', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kwd-11', 'Hayden Robinson', NULL, '2026-01-20 09:56:53.965833', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5742c5de-9b98-41a3-9b94-a6284260eafe', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kwg-12', 'Peyton Clark', NULL, '2026-01-20 09:56:53.968898', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f12a4ed2-9f67-43d5-99f8-7325ac111cdb', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kwj-13', 'Skyler Lewis', NULL, '2026-01-20 09:56:53.971893', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c17b97fb-c303-4712-b618-d7df79afcab4', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kwm-14', 'Reese Walker', NULL, '2026-01-20 09:56:53.974645', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('56a0827e-89b9-4376-8b6e-b48e09e06a65', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kwp-15', 'Finley Hall', NULL, '2026-01-20 09:56:53.9775', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('325a808d-6321-405a-a490-443eef6abd7f', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kws-16', 'Dakota Young', NULL, '2026-01-20 09:56:53.980807', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3076174a-6026-400e-8627-d0d98fa6e835', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kwv-17', 'Rowan King', NULL, '2026-01-20 09:56:53.983513', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2084d8d6-2c37-428d-b81a-2f42de8a9cf7', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kww-18', 'Sage Wright', NULL, '2026-01-20 09:56:53.985317', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d7718edd-b873-45f1-bcbe-5e496256089c', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kwz-19', 'Phoenix Scott', NULL, '2026-01-20 09:56:53.988172', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fd6ca9ef-e584-4297-8092-11c48dc17a99', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kx2-20', 'River Green', NULL, '2026-01-20 09:56:53.991327', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('de5503fa-69a9-45c6-a1ff-e7d6a91cf743', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kx5-21', 'Blake Adams', NULL, '2026-01-20 09:56:53.993634', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('341f7d11-090d-4220-9308-61e769157c02', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kx7-22', 'Charlie Baker', NULL, '2026-01-20 09:56:53.996215', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9dfec276-6f70-4cf3-9491-8c8233d415ef', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kxa-23', 'Emerson Nelson', NULL, '2026-01-20 09:56:53.998966', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('31c0f1fc-6ec0-43d8-bbeb-202d7c520467', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kxd-24', 'Harper Carter', NULL, '2026-01-20 09:56:54.002145', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6ce89c58-922b-40ae-ae4f-b7857e8cb7c2', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kxg-25', 'Kendall Mitchell', NULL, '2026-01-20 09:56:54.004463', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f413babd-1c15-44af-880e-7ea40a499a7e', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kxi-26', 'Logan Perez', NULL, '2026-01-20 09:56:54.007124', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3560d7ea-e650-4126-9421-f5b8439ab217', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kxl-27', 'Parker Roberts', NULL, '2026-01-20 09:56:54.00997', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ba333431-a7a6-4c2a-acf9-0ce98c4139c0', '87ea9e00-8881-4332-8d31-ce8d3e053b93', 'test-mkmf6kxo-28', 'Sydney Turner', NULL, '2026-01-20 09:56:54.013006', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('49e6866e-7fc0-454d-a2e7-9baedccf1a4c', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71kk-0', 'Alex Smith', NULL, '2026-01-20 09:57:15.5734', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e36ede2f-b19b-4326-8397-e0d2c8067060', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71kp-1', 'Jordan Brown', NULL, '2026-01-20 09:57:15.578092', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c3d31129-3fa1-4fa6-88fe-c2b3d9790cd9', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71kt-2', 'Taylor Wilson', NULL, '2026-01-20 09:57:15.581698', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('519b996b-cd3c-4b97-ae94-39861d0ae446', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71kv-3', 'Casey Jones', NULL, '2026-01-20 09:57:15.584423', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9d562f54-7235-4ec7-99df-aeb7aee7fdc8', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71kz-4', 'Morgan Davis', NULL, '2026-01-20 09:57:15.587916', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('53349bed-2441-4447-a933-af6a532451d3', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71l2-5', 'Riley Taylor', NULL, '2026-01-20 09:57:15.591354', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fd0fcada-afee-4ab7-9807-82f2f34a6149', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71l5-6', 'Drew Anderson', NULL, '2026-01-20 09:57:15.593782', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2eea8c73-53d2-4d6d-8437-c10d29e2d87e', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71l8-7', 'Cameron White', NULL, '2026-01-20 09:57:15.596809', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a00406b9-f662-4589-8bd4-06cd09232030', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71lc-8', 'Jamie Martin', NULL, '2026-01-20 09:57:15.601423', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5129b141-b61c-4a12-b1c8-72661f98e3bd', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71lg-9', 'Avery Thompson', NULL, '2026-01-20 09:57:15.60467', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a281d308-2a5a-407a-81c6-754af0b1ae26', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71lk-10', 'Quinn Garcia', NULL, '2026-01-20 09:57:15.609037', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0ee8a3e6-5851-47a7-b123-cf01c0a27bd7', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71ln-11', 'Hayden Robinson', NULL, '2026-01-20 09:57:15.612122', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('45734096-7f42-4d5f-a33b-340ef38660e4', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71lq-12', 'Peyton Clark', NULL, '2026-01-20 09:57:15.615395', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('88ee94fe-97e3-43c6-8397-022dd2b34277', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71lu-13', 'Skyler Lewis', NULL, '2026-01-20 09:57:15.619018', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5882be03-1a8d-4b18-ab01-2a5efc375dd6', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71lx-14', 'Reese Walker', NULL, '2026-01-20 09:57:15.621929', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('da3407d2-89de-4a51-8ff5-7aee39e8c95a', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71m1-15', 'Finley Hall', NULL, '2026-01-20 09:57:15.625882', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('bf713948-9b65-4f39-a520-5fc17142d3d6', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71m4-16', 'Dakota Young', NULL, '2026-01-20 09:57:15.628728', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('387e25aa-f5dd-4329-a4c9-5c378488d6cc', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71m7-17', 'Rowan King', NULL, '2026-01-20 09:57:15.631994', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('12036944-e6d9-4266-bc1d-0c5ca41a8d1b', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71ma-18', 'Sage Wright', NULL, '2026-01-20 09:57:15.634856', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ea932cd2-30c7-43b6-8d3f-caed5c18e128', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71md-19', 'Phoenix Scott', NULL, '2026-01-20 09:57:15.637763', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d0393262-122d-4b6b-afbe-954ed64d5145', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71mg-20', 'River Green', NULL, '2026-01-20 09:57:15.640795', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('65dff67d-272d-4972-ae26-557ff225eec5', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71mx-21', 'Blake Adams', NULL, '2026-01-20 09:57:15.657616', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('00a28812-a2b7-443b-9f39-1b4551ad397e', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71mz-22', 'Charlie Baker', NULL, '2026-01-20 09:57:15.660169', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ff62448d-1f77-45ad-b584-09dbdb691a2b', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71n2-23', 'Emerson Nelson', NULL, '2026-01-20 09:57:15.66304', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('921236ae-d706-473a-9efe-9e53339ba02f', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71n5-24', 'Harper Carter', NULL, '2026-01-20 09:57:15.665522', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('df51b516-9f87-4872-93ff-b08df4864cd1', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71n8-25', 'Kendall Mitchell', NULL, '2026-01-20 09:57:15.668441', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c6d6fb0b-d510-475d-b22f-dccb14ec0e79', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71na-26', 'Logan Perez', NULL, '2026-01-20 09:57:15.671187', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0d61a704-75c2-4db8-b5d2-5dba1ba6f68e', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71nd-27', 'Parker Roberts', NULL, '2026-01-20 09:57:15.674102', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7dde8f33-a447-45c4-9f74-328887486a3b', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71ng-28', 'Sydney Turner', NULL, '2026-01-20 09:57:15.677269', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('53731d27-6a02-4c2c-a1ff-d50467a66e7d', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71nj-29', 'Jesse Phillips', NULL, '2026-01-20 09:57:15.680735', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('37b61554-67e3-456b-886e-50fed069e07c', '43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'test-mkmf71nn-30', 'Alex Smith 2', NULL, '2026-01-20 09:57:15.683692', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9ce6f74a-c9b3-48ed-b150-11a44ebb1200', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5mu-0', 'Alex Smith', NULL, '2026-01-20 10:05:54.054638', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f6a93012-2c2c-4d1f-97d1-fadd3f17079a', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5mx-1', 'Jordan Brown', NULL, '2026-01-20 10:05:54.057578', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('18468f77-865f-4baf-b430-6e11083c8e61', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5mz-2', 'Taylor Wilson', NULL, '2026-01-20 10:05:54.059898', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fff7a2e0-9f9a-4ea5-9989-5dcb09d30d47', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5n5-4', 'Morgan Davis', NULL, '2026-01-20 10:05:54.066226', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b1be2f2e-9cab-43fd-b098-c1334da745a1', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5n8-5', 'Riley Taylor', NULL, '2026-01-20 10:05:54.068968', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2087f3ab-4747-471b-9509-11c18dbf36e0', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5ne-7', 'Cameron White', NULL, '2026-01-20 10:05:54.074895', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0df57344-ef62-4129-8eaf-86cc2a3a721b', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5ni-8', 'Jamie Martin', NULL, '2026-01-20 10:05:54.078441', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('26ede0d9-6363-420c-8cb7-e7787cbf93fa', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5nl-9', 'Avery Thompson', NULL, '2026-01-20 10:05:54.081796', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5a79c292-f69e-4ae4-bb1a-2c5a0ce73e9a', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5no-10', 'Quinn Garcia', NULL, '2026-01-20 10:05:54.084687', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('220b5b3f-60e1-4f9f-bb31-1991135b1d06', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5nr-11', 'Hayden Robinson', NULL, '2026-01-20 10:05:54.087888', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7d38bfda-e0fc-4539-9fa2-d88559ca7426', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5qg-12', 'Peyton Clark', NULL, '2026-01-20 10:05:54.185125', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('10b2c25f-b983-4aa4-a234-db71cf5645d6', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5qk-13', 'Skyler Lewis', NULL, '2026-01-20 10:05:54.188966', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0da1f4dd-092c-4a5e-885f-067f0f744e98', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5qn-14', 'Reese Walker', NULL, '2026-01-20 10:05:54.192137', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e0b2b305-d13c-43be-ad64-1a5645e274f3', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5qq-15', 'Finley Hall', NULL, '2026-01-20 10:05:54.195114', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('617c20f7-33aa-4476-83ac-f6660e614bb0', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5qt-16', 'Dakota Young', NULL, '2026-01-20 10:05:54.197992', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b26649f6-825a-441a-b4f3-d601acc9e15d', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5qw-17', 'Rowan King', NULL, '2026-01-20 10:05:54.200569', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('95ee256d-a7b3-431c-b517-1710659c13d3', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5qy-18', 'Sage Wright', NULL, '2026-01-20 10:05:54.20327', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('496a511b-de32-4ad3-a6c8-ee87fca04197', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5r1-19', 'Phoenix Scott', NULL, '2026-01-20 10:05:54.205942', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('52dda407-e4f7-4db2-82b5-cd9032e700ec', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5r4-20', 'River Green', NULL, '2026-01-20 10:05:54.208693', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('79059d29-72bd-45da-b59f-c8a674a5f230', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5rc-22', 'Charlie Baker', NULL, '2026-01-20 10:05:54.217526', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5c276136-2b69-46c2-9a81-0fe6d78f9607', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5rg-23', 'Emerson Nelson', NULL, '2026-01-20 10:05:54.221562', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b5ad1ebc-dec3-43b1-9c8c-20c2e78d7f8c', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5rk-24', 'Harper Carter', NULL, '2026-01-20 10:05:54.225044', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ae9d24b3-383e-4ee6-8081-3154f00c9c77', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5rn-25', 'Kendall Mitchell', NULL, '2026-01-20 10:05:54.228345', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5486114e-2163-457a-94c9-4eafc06ba3ed', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5rq-26', 'Logan Perez', NULL, '2026-01-20 10:05:54.231196', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e20ecb0c-67b2-4848-93e9-bca49986e4f6', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5rt-27', 'Parker Roberts', NULL, '2026-01-20 10:05:54.233709', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6e5fdd43-283f-4254-8da5-f1cb6a317e65', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5rx-28', 'Sydney Turner', NULL, '2026-01-20 10:05:54.23789', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2b84f2cb-8d43-444b-8655-80f5f85e8313', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5rz-29', 'Jesse Phillips', NULL, '2026-01-20 10:05:54.240315', 'confirmed', '22', 'team', 1, '[]', 22, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4dfe3157-be9f-4b42-8aaa-d8a8330fe7f3', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5r8-21', 'Blake Adams', NULL, '2026-01-20 10:05:54.213006', 'confirmed', '22', 'team', 1, '[]', NULL, '{"0":76}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a408b9a3-e2f5-49e9-bb04-7e0b4a7717b7', '6e2fd69b-988f-4902-a05e-2d8bf5682844', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, '[]', '2026-01-20 19:43:25.31197', 'confirmed', '11', 'individual', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('358dc75d-9e5c-44b1-ac50-b9a02ae62faf', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5n2-3', 'Casey Jones', NULL, '2026-01-20 10:05:54.062752', 'confirmed', '22', 'team', 1, '[]', NULL, '{"0":89}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5839c322-ca83-444d-a419-cda8136cc579', '82396200-0443-42d4-940d-40329f33cc51', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, '[]', '2026-01-20 10:05:18.987077', 'confirmed', '44', 'individual', 2, '["bc72fed0-afab-45cb-bbca-c8baeca541ff"]', 45, '{"0":65,"1":44}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('129b9a01-10dd-4f7f-819b-3cadbadc6d91', '82396200-0443-42d4-940d-40329f33cc51', 'test-mkmfi5na-6', 'Drew Anderson', NULL, '2026-01-20 10:05:54.071454', 'confirmed', '22', 'team', 1, '[]', NULL, '{"0":68}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6fd8c8d4-b0bd-46b0-b676-9253f759e861', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9ki-0', 'Alex Smith', NULL, '2026-01-21 10:03:46.099644', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('79dc6cf1-898f-4591-b7b1-22087bfbf034', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9ks-1', 'Jordan Brown', NULL, '2026-01-21 10:03:46.108684', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fa090bbb-d444-463b-ac37-6a435aabf07e', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9kv-2', 'Taylor Wilson', NULL, '2026-01-21 10:03:46.111631', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f778bf9b-89f3-43a3-bf41-75d1e8440ebc', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9ky-3', 'Casey Jones', NULL, '2026-01-21 10:03:46.116292', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f055967c-3b2a-4d4a-ab13-30de8efb698d', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9l3-4', 'Morgan Davis', NULL, '2026-01-21 10:03:46.120101', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8e705699-d9a8-48c6-a5fe-98d9892cb13f', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9l8-5', 'Riley Taylor', NULL, '2026-01-21 10:03:46.124818', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('64dc6830-ca9e-4df5-87df-f6d352bb5d47', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9lb-6', 'Drew Anderson', NULL, '2026-01-21 10:03:46.129113', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('cdc40d27-a0b1-4e69-9d4a-cf23c0ab821e', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9lf-7', 'Cameron White', NULL, '2026-01-21 10:03:46.132504', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('063cf3bd-0d9f-4f17-8ec7-9fe56f393abd', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9lk-8', 'Jamie Martin', NULL, '2026-01-21 10:03:46.136851', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('93fde65d-63b6-401c-83c5-e283c3e92bcd', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9lp-9', 'Avery Thompson', NULL, '2026-01-21 10:03:46.142324', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6eb9d5c8-fd4c-4f66-8c60-31732ba0ff1a', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9lt-10', 'Quinn Garcia', NULL, '2026-01-21 10:03:46.14602', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('bd5ea503-287b-4ad2-aa0b-086cb5b3dd30', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9lx-11', 'Hayden Robinson', NULL, '2026-01-21 10:03:46.150289', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f6a5ad95-03cd-43c4-8eef-72bd1bd3d7aa', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9m1-12', 'Peyton Clark', NULL, '2026-01-21 10:03:46.154057', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3a6e171d-9f2c-4767-9cce-bc2d618a6314', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9m4-13', 'Skyler Lewis', NULL, '2026-01-21 10:03:46.157886', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('188b21b5-b016-4bf6-88aa-e3dfc5fcdeda', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9m9-14', 'Reese Walker', NULL, '2026-01-21 10:03:46.161646', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b9833eb5-aa02-4fba-b2c9-b91086ebd110', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9mc-15', 'Finley Hall', NULL, '2026-01-21 10:03:46.165845', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c5c7be60-0f4a-4f39-ab2d-0451dd9f1803', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9mg-16', 'Dakota Young', NULL, '2026-01-21 10:03:46.169161', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b3805091-df2c-499e-bf6f-e8506584b9a4', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9mk-17', 'Rowan King', NULL, '2026-01-21 10:03:46.172982', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('56acd54f-2b50-41a2-b7ab-3ceb8ec33a70', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9mn-18', 'Sage Wright', NULL, '2026-01-21 10:03:46.17611', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9abbe576-7c35-44f7-b82f-6bf13c97e028', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9mt-19', 'Phoenix Scott', NULL, '2026-01-21 10:03:46.181804', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5aefed87-f37c-4772-b062-1720e7c2458e', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9mv-20', 'River Green', NULL, '2026-01-21 10:03:46.184158', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4dac2efa-1f88-4628-ad3e-0b0b94e02014', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9mz-21', 'Blake Adams', NULL, '2026-01-21 10:03:46.187889', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2cf528f8-8793-48af-a6f2-136b5e2e1c33', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9n3-22', 'Charlie Baker', NULL, '2026-01-21 10:03:46.191652', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7df3d91f-68ea-4692-9cfb-6d67495e915c', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9n6-23', 'Emerson Nelson', NULL, '2026-01-21 10:03:46.194911', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b0921fc1-4bd9-4bd7-907e-d494ca9ee7d4', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9na-24', 'Harper Carter', NULL, '2026-01-21 10:03:46.198695', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('47593d46-c5c2-4379-b801-5120297a5db2', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9nd-25', 'Kendall Mitchell', NULL, '2026-01-21 10:03:46.202131', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d22a1f9b-a639-459d-a026-0c6eb5961423', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9nh-26', 'Logan Perez', NULL, '2026-01-21 10:03:46.205532', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e6951036-5a2d-4d4a-b7ac-d2aaa172b28e', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9nm-27', 'Parker Roberts', NULL, '2026-01-21 10:03:46.210879', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('578df651-6fec-4c16-8d4c-cd6427f1d31c', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9np-28', 'Sydney Turner', NULL, '2026-01-21 10:03:46.214402', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('57025c88-aa1c-4f3f-945c-7993645bed73', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9nt-29', 'Jesse Phillips', NULL, '2026-01-21 10:03:46.21801', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0b6efc63-c8b6-4e52-81d0-5610c20d2d1f', '6e2fd69b-988f-4902-a05e-2d8bf5682844', 'test-mknuv9nw-30', 'Alex Smith 2', NULL, '2026-01-21 10:03:46.22113', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('1c1a9fc7-9ac3-4af7-966f-4fdbe56f30eb', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2utw-0', 'Alex Smith', NULL, '2026-01-26 23:35:50.421628', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('1af57e07-2084-4268-a08b-46b9caa2ad4f', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uu3-1', 'Jordan Brown', NULL, '2026-01-26 23:35:50.427604', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('837f0f8f-57f5-459d-8ab8-701210dba5fa', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uu6-2', 'Taylor Wilson', NULL, '2026-01-26 23:35:50.430606', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('1067b325-ba6b-4fe9-b85d-3ad22ef8c69c', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uuc-4', 'Morgan Davis', NULL, '2026-01-26 23:35:50.437065', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('73a76c26-dd8b-440d-a302-b5baca6b1129', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uuf-5', 'Riley Taylor', NULL, '2026-01-26 23:35:50.439983', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('49836929-450b-4784-9aa4-ce7159ded5e0', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uui-6', 'Drew Anderson', NULL, '2026-01-26 23:35:50.442878', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7cf2cf63-2713-4fc5-9c1a-5759134ca6f5', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uul-7', 'Cameron White', NULL, '2026-01-26 23:35:50.445642', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9e5fc0e9-4249-40de-8bb0-2e127436e427', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uun-8', 'Jamie Martin', NULL, '2026-01-26 23:35:50.447963', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9717acac-87fc-4fba-8609-aeedceb65ee4', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uuq-9', 'Avery Thompson', NULL, '2026-01-26 23:35:50.450879', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4c9a0f7b-5c69-4454-bfa9-55c57078644b', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uus-10', 'Quinn Garcia', NULL, '2026-01-26 23:35:50.452829', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3e0b60f5-2a9f-47a3-a0e5-2670ed30d3fd', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uuv-11', 'Hayden Robinson', NULL, '2026-01-26 23:35:50.455454', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('52c4dc0c-1fd6-4845-9d5f-73c5049f39b3', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uu9-3', 'Casey Jones', NULL, '2026-01-26 23:35:50.434122', 'confirmed', '21', 'team', 1, '[]', NULL, '{"0":55}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8d662842-eb96-4f1a-8b9c-a594e4b74c49', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uux-12', 'Peyton Clark', NULL, '2026-01-26 23:35:50.457574', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('cf3a4eb7-fe11-493a-a728-8ea0a36971ab', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uuz-13', 'Skyler Lewis', NULL, '2026-01-26 23:35:50.459614', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b55182ec-5320-41ce-9f8e-30ae3288c9f7', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uv1-14', 'Reese Walker', NULL, '2026-01-26 23:35:50.462015', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('68e7907a-4ce1-4546-a417-6760bc5a5c06', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uv4-15', 'Finley Hall', NULL, '2026-01-26 23:35:50.465439', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5f1a3329-becf-47ac-8e81-c2089774502b', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uv7-16', 'Dakota Young', NULL, '2026-01-26 23:35:50.468025', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ffa6cd93-e5bf-4013-9a2e-8492515769ad', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uva-17', 'Rowan King', NULL, '2026-01-26 23:35:50.470793', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7e59369f-31cf-433f-9132-ba08e998c3b3', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uvc-18', 'Sage Wright', NULL, '2026-01-26 23:35:50.472643', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e6c01a6f-5cd6-49e9-b019-5a6e0c876d6e', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uve-19', 'Phoenix Scott', NULL, '2026-01-26 23:35:50.475373', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0989f363-66fb-4730-ac1c-21794a609ed6', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uvh-20', 'River Green', NULL, '2026-01-26 23:35:50.477956', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0db7cf0c-fffe-4067-837a-24c17eda0d9b', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uvk-21', 'Blake Adams', NULL, '2026-01-26 23:35:50.481117', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3e45a563-22f7-4c87-9fed-68d4e2f12183', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uvn-22', 'Charlie Baker', NULL, '2026-01-26 23:35:50.484296', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('bd211c9b-ae3f-4cc0-bcda-3f4707c36e23', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uvr-23', 'Emerson Nelson', NULL, '2026-01-26 23:35:50.487557', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('25ae06eb-67a4-40a5-82ab-5856ad97aa0e', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uvu-24', 'Harper Carter', NULL, '2026-01-26 23:35:50.491396', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b61daa62-cd9b-40e3-9f78-75017f69f683', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uvx-25', 'Kendall Mitchell', NULL, '2026-01-26 23:35:50.494176', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8b1c3e5d-5e17-4990-967a-1878aa5d724e', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uw0-26', 'Logan Perez', NULL, '2026-01-26 23:35:50.496747', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e687d4c9-e33c-4101-bcd3-d7d7e030f420', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uw3-27', 'Parker Roberts', NULL, '2026-01-26 23:35:50.500159', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('bb95d30a-3e03-42ba-8fc8-30c2ed0596ba', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uw6-28', 'Sydney Turner', NULL, '2026-01-26 23:35:50.502872', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b19a8912-820b-4119-bb7c-a09963bb7880', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uw9-29', 'Jesse Phillips', NULL, '2026-01-26 23:35:50.50601', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3b7874dc-1403-4163-9a4c-8f3cd77e246a', 'a4974196-59ba-4220-9f4f-8236ee709b74', 'test-mkvt2uwl-30', 'Alex Smith 2', NULL, '2026-01-26 23:35:50.517651', 'confirmed', '21', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4b82b210-299c-4c0a-99f7-37354a986114', 'a4974196-59ba-4220-9f4f-8236ee709b74', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, '[]', '2026-01-26 23:20:44.705929', 'confirmed', '21', 'team', 1, '[]', NULL, '{"0":44}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('453497d7-bc20-455f-abef-4f4b0d0721b0', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic60-0', 'Alex Smith', NULL, '2026-02-08 17:23:41.20912', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('1d3ae0ca-cb48-47d6-9e8b-595b96887f79', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic6c-1', 'Jordan Brown', NULL, '2026-02-08 17:23:41.220942', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('077be02d-21fe-4abc-ae2a-8523cdf234ef', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic6f-2', 'Taylor Wilson', NULL, '2026-02-08 17:23:41.223686', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c65715f9-8520-474f-8f64-f08a432d17c3', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic6i-3', 'Casey Jones', NULL, '2026-02-08 17:23:41.226488', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('dd3029ef-28ee-4499-afb3-cbbe45c22ead', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic6k-4', 'Morgan Davis', NULL, '2026-02-08 17:23:41.229305', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('1a3b2bf9-7a98-41c0-84b9-042b6e213859', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic6n-5', 'Riley Taylor', NULL, '2026-02-08 17:23:41.231816', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('70285f9f-5549-4db5-93c3-c2e5ed1c0341', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic6q-6', 'Drew Anderson', NULL, '2026-02-08 17:23:41.234377', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('03fba50f-ffc5-464d-987b-337cfef7b9d2', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic6s-7', 'Cameron White', NULL, '2026-02-08 17:23:41.237079', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('407b470e-acd9-4a98-8208-3b2e0b882f4e', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic6v-8', 'Jamie Martin', NULL, '2026-02-08 17:23:41.239736', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3a510b6c-08af-4e20-829e-3bca13a1a09e', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic6y-9', 'Avery Thompson', NULL, '2026-02-08 17:23:41.242448', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('49088837-4de8-4166-ac13-9b38d9120384', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic70-10', 'Quinn Garcia', NULL, '2026-02-08 17:23:41.245072', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b20c7873-2da4-41d7-aa8a-c92d2e177cfb', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic73-11', 'Hayden Robinson', NULL, '2026-02-08 17:23:41.247711', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fabcb41d-a6ef-4ef2-b6ab-aff00048f271', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic76-12', 'Peyton Clark', NULL, '2026-02-08 17:23:41.250495', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8f4d4048-7485-4a06-958f-13d34ba57d40', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic77-13', 'Skyler Lewis', NULL, '2026-02-08 17:23:41.252333', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('37617449-25d0-4f0f-88c2-36b126714dfe', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic7a-14', 'Reese Walker', NULL, '2026-02-08 17:23:41.254894', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f6c0168b-f55f-4203-8f34-1595ba07070f', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic7d-15', 'Finley Hall', NULL, '2026-02-08 17:23:41.257529', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('46baec13-3bd4-43f1-b381-f2ad55501197', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic7f-16', 'Dakota Young', NULL, '2026-02-08 17:23:41.260308', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a0c17dd4-4ad5-4413-9ad2-20fcce1fe0c7', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic7i-17', 'Rowan King', NULL, '2026-02-08 17:23:41.262381', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('782b99c2-9564-4a61-908c-9312113aa379', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic7k-18', 'Sage Wright', NULL, '2026-02-08 17:23:41.26502', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2804982f-e52c-467c-b570-36df583fb1c7', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic7n-19', 'Phoenix Scott', NULL, '2026-02-08 17:23:41.267644', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ed651696-fd38-4b65-b833-dab9205e8534', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic7q-20', 'River Green', NULL, '2026-02-08 17:23:41.270489', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7ff4894c-33b1-43bd-9d8f-42788ab40a5c', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic7s-21', 'Blake Adams', NULL, '2026-02-08 17:23:41.273229', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d7ec7947-5db9-4acd-8490-1af3511ab29e', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic7v-22', 'Charlie Baker', NULL, '2026-02-08 17:23:41.276174', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('751c35e2-603e-49e1-95d1-bcf81fcf7d3e', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic7x-23', 'Emerson Nelson', NULL, '2026-02-08 17:23:41.278293', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c67f5d78-2c7a-444a-9694-4cf1cb459e20', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic80-24', 'Harper Carter', NULL, '2026-02-08 17:23:41.280975', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3e3c81ca-cf66-48ce-ab02-3ca7ecde548a', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic82-25', 'Kendall Mitchell', NULL, '2026-02-08 17:23:41.282706', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ece3f3ae-41a0-419f-9ea6-a2f0316e7dc9', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic85-26', 'Logan Perez', NULL, '2026-02-08 17:23:41.285595', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('be53d9dd-5e2e-4882-bf91-3d1a2e7e4774', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic87-27', 'Parker Roberts', NULL, '2026-02-08 17:23:41.287899', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c221d2c9-420c-4187-bfb4-65d8f14c128d', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic89-28', 'Sydney Turner', NULL, '2026-02-08 17:23:41.290248', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2e57b779-b98e-4847-adbd-8b1b3f8853e6', '37dd20a4-5905-41f8-89e0-30b96e2251a7', 'test-mle0ic8b-29', 'Jesse Phillips', NULL, '2026-02-08 17:23:41.292284', 'confirmed', '22', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('013e1000-4cae-4312-aac9-aed73580986b', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wupe-0', 'Alex Smith', NULL, '2026-02-08 19:54:56.498975', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0b9aea04-0f88-4fa1-94e7-a5a27709b759', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wupj-1', 'Jordan Brown', NULL, '2026-02-08 19:54:56.504288', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('540fd224-fe5c-4c88-b8cd-f004864b47b6', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wupm-2', 'Taylor Wilson', NULL, '2026-02-08 19:54:56.507173', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('391be0f4-9f53-4d49-8ab2-62cf25347ae2', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wupp-3', 'Casey Jones', NULL, '2026-02-08 19:54:56.509445', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('16dfd7fc-fa8c-48b8-912c-fb55bd4bdcc7', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wupr-4', 'Morgan Davis', NULL, '2026-02-08 19:54:56.511685', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ae91b62e-1119-4c8d-8838-69948bb37ecb', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wupu-5', 'Riley Taylor', NULL, '2026-02-08 19:54:56.514578', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('acba8644-6985-4835-bc4c-444c90bd67ed', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wupw-6', 'Drew Anderson', NULL, '2026-02-08 19:54:56.516759', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b5619932-6658-40bc-8d2c-a938943b2afd', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wupy-7', 'Cameron White', NULL, '2026-02-08 19:54:56.519113', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d25bdae5-b3e9-40db-acc1-e8974209442c', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wuq1-8', 'Jamie Martin', NULL, '2026-02-08 19:54:56.521946', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ad61cf46-4bfd-4969-a793-f2e6e5afb691', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wuq3-9', 'Avery Thompson', NULL, '2026-02-08 19:54:56.524099', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8fb2e613-faf7-4adf-a878-30eb43d2e5e2', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wuq5-10', 'Quinn Garcia', NULL, '2026-02-08 19:54:56.526108', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('03259cd2-8510-4b3c-b764-f5015a091065', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wuq8-11', 'Hayden Robinson', NULL, '2026-02-08 19:54:56.529', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('71a09649-49a7-48e7-a5ea-f0c51adf7375', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wuqa-12', 'Peyton Clark', NULL, '2026-02-08 19:54:56.531259', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4bf2d6fe-6247-4128-8267-1ce4f67acebc', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wuqd-13', 'Skyler Lewis', NULL, '2026-02-08 19:54:56.534312', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4dd4e79a-e9ae-4765-a642-aaa07decb16c', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wuqg-14', 'Reese Walker', NULL, '2026-02-08 19:54:56.53687', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('dd5bda5f-21cf-4e3a-a0d1-a0d4c526076e', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wuqu-15', 'Finley Hall', NULL, '2026-02-08 19:54:56.550629', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('13027f32-33a5-49b6-aa0f-5a3701be0520', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wuqw-16', 'Dakota Young', NULL, '2026-02-08 19:54:56.553064', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('bde73bb9-9ac9-4557-9f0c-1d7d08761706', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wur0-17', 'Rowan King', NULL, '2026-02-08 19:54:56.556688', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('12c33abd-55e1-4056-ad71-262923defdd3', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wur3-18', 'Sage Wright', NULL, '2026-02-08 19:54:56.560011', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3cc70097-2de9-4ca0-9b3a-cec425aeb081', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wur6-19', 'Phoenix Scott', NULL, '2026-02-08 19:54:56.56252', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9eb3598e-9607-4dc1-9de5-6a843f8c39d2', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wur8-20', 'River Green', NULL, '2026-02-08 19:54:56.565177', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('cca7c16e-cd05-4611-98f4-baa6cc02b1f3', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wurl-21', 'Blake Adams', NULL, '2026-02-08 19:54:56.577815', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('78bbe324-abdf-4c05-877a-637520914dd2', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wurn-22', 'Charlie Baker', NULL, '2026-02-08 19:54:56.580027', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d9503ba3-eb27-4d77-9b3e-2f2b2d348232', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wurq-23', 'Emerson Nelson', NULL, '2026-02-08 19:54:56.582748', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fd6e51af-e91d-4450-ac91-815ac83bcb7d', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wus1-24', 'Harper Carter', NULL, '2026-02-08 19:54:56.594223', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3ccf4e13-914f-49a1-bb4e-a6cc2b413fb0', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wus4-25', 'Kendall Mitchell', NULL, '2026-02-08 19:54:56.596815', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('46c10bf1-e5bf-434d-8dfe-c05e04644683', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wus7-26', 'Logan Perez', NULL, '2026-02-08 19:54:56.59953', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('09a278a7-73f6-4404-908b-c05224556ce0', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wus9-27', 'Parker Roberts', NULL, '2026-02-08 19:54:56.601701', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('fb6f8066-2a16-4d79-be6d-64a90c9ad673', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wusc-28', 'Sydney Turner', NULL, '2026-02-08 19:54:56.604542', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('050b360d-e8b1-4338-aeeb-8a0a448e84b9', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wusf-29', 'Jesse Phillips', NULL, '2026-02-08 19:54:56.607699', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8ee2cd2d-6fd1-4f98-b6ec-a230b6722ead', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wush-30', 'Alex Smith 2', NULL, '2026-02-08 19:54:56.610062', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('99ada73d-a5ab-42b9-8222-a7e931012863', '7662088f-be90-46e2-a338-2e4f26e201cb', 'test-mle5wusj-31', 'Jordan Brown 2', NULL, '2026-02-08 19:54:56.612173', 'confirmed', '11', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('904b7629-9156-4f2e-83b9-71c4f1bad8f2', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9cp-0', 'Alex Smith', NULL, '2026-02-10 19:13:29.883625', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6f714b5f-e889-4311-93fc-542b073fe66d', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9gg-1', 'Jordan Brown', NULL, '2026-02-10 19:13:30.017348', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('91638645-6ed0-4330-b74a-9ee0c06d0bef', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9gk-2', 'Taylor Wilson', NULL, '2026-02-10 19:13:30.021347', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ec4383dd-ea0e-4814-87fa-14501825b790', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9go-3', 'Casey Jones', NULL, '2026-02-10 19:13:30.025278', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8de0d018-edc0-42aa-af36-026ff3509208', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9gt-4', 'Morgan Davis', NULL, '2026-02-10 19:13:30.029973', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d64c95c8-5e69-4ef3-bf3b-f54fde2c4128', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9gx-5', 'Riley Taylor', NULL, '2026-02-10 19:13:30.03406', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('af0f36ca-c0e6-4714-93a8-5ae2aceff3d4', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9h0-6', 'Drew Anderson', NULL, '2026-02-10 19:13:30.036736', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0d344ab0-4cf0-4b59-afb5-bc86aae6dba4', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9h3-7', 'Cameron White', NULL, '2026-02-10 19:13:30.040161', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9b7b3250-80ba-45d7-9ece-ae1b67f54d87', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9h7-8', 'Jamie Martin', NULL, '2026-02-10 19:13:30.044403', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b25fe95a-b4ad-41d5-8eb2-e0cb3e4d0924', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9hb-9', 'Avery Thompson', NULL, '2026-02-10 19:13:30.047821', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('072bcc7d-3797-4152-a767-1f778320731d', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9he-10', 'Quinn Garcia', NULL, '2026-02-10 19:13:30.051421', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('bda66a5b-368f-4c3e-8d82-3f2f42370b5b', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9hi-11', 'Hayden Robinson', NULL, '2026-02-10 19:13:30.054915', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('67b60284-9603-44b8-a4f4-afd290bc723f', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9hm-12', 'Peyton Clark', NULL, '2026-02-10 19:13:30.058831', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('7e45ebf8-75de-43a6-a706-8c2cf86012b9', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9hp-13', 'Skyler Lewis', NULL, '2026-02-10 19:13:30.061958', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('92b64f94-727a-4bdc-a3e5-54220235f487', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9ht-14', 'Reese Walker', NULL, '2026-02-10 19:13:30.065556', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('30ace13c-01c1-40cb-aae9-737cb829a320', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9hw-15', 'Finley Hall', NULL, '2026-02-10 19:13:30.068965', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('657bbb12-db36-4616-b4b4-6b4d38ae744e', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9hz-16', 'Dakota Young', NULL, '2026-02-10 19:13:30.071782', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('08f5e76f-7a60-4325-a4db-b4e60f8f2f2f', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9i2-17', 'Rowan King', NULL, '2026-02-10 19:13:30.074616', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e777adce-34af-416d-b1d9-0d6e25688f66', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9i5-18', 'Sage Wright', NULL, '2026-02-10 19:13:30.07789', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b1db9627-a5e4-4d33-8d18-7e1e80e97a6c', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9i8-19', 'Phoenix Scott', NULL, '2026-02-10 19:13:30.080975', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('161ef225-9542-4c25-ba99-2c5087f549cc', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9ib-20', 'River Green', NULL, '2026-02-10 19:13:30.083758', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('44a8a108-ae3a-4da3-bc7c-65c2ff203a53', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9ie-21', 'Blake Adams', NULL, '2026-02-10 19:13:30.086877', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8f077973-644c-4abc-ae57-05d6ccc8d63a', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9ih-22', 'Charlie Baker', NULL, '2026-02-10 19:13:30.089746', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9c91116b-c2af-4589-920d-75419f813988', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9ik-23', 'Emerson Nelson', NULL, '2026-02-10 19:13:30.092972', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2dcbd6cf-ee1c-434e-88dd-aaf09dfb29e2', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9io-24', 'Harper Carter', NULL, '2026-02-10 19:13:30.097277', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('55a04ddc-89e6-4d42-a99f-34fdbb074e26', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9ir-25', 'Kendall Mitchell', NULL, '2026-02-10 19:13:30.100623', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8d590369-e062-4ad5-95ca-0ca89b13cb20', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9iv-26', 'Logan Perez', NULL, '2026-02-10 19:13:30.104042', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5e29c956-00fb-4fbc-a1a6-19a3f407edf2', '44d0e748-a586-4cf9-b9f6-022fd3445a73', 'test-mlgzb9iz-27', 'Parker Roberts', NULL, '2026-02-10 19:13:30.107939', 'confirmed', '33', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6a19680b-c459-465a-b385-8dadea1db18b', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre0d-0', 'Alex Smith', NULL, '2026-02-25 11:41:12.494343', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6d1e2a36-0f8d-481c-87ea-2467e3f0d067', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre0h-1', 'Jordan Brown', NULL, '2026-02-25 11:41:12.497921', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2dea55c6-227a-47be-bc08-a509a6f8b96f', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre0k-2', 'Taylor Wilson', NULL, '2026-02-25 11:41:12.500752', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('8af14bf4-04a1-44fa-8b48-ddfa1e66c69d', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre0m-3', 'Casey Jones', NULL, '2026-02-25 11:41:12.503243', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3267c822-ce2d-41ed-b94e-1ff54c9864b5', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre0p-4', 'Morgan Davis', NULL, '2026-02-25 11:41:12.506034', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3ceaf8af-4eb0-4c55-9537-3ed90387ef31', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre0r-5', 'Riley Taylor', NULL, '2026-02-25 11:41:12.508261', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b19df76a-1122-4e10-b079-177d371c111c', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre0v-6', 'Drew Anderson', NULL, '2026-02-25 11:41:12.511519', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('0b702b76-7892-4df9-b900-765a0182bc92', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre0x-7', 'Cameron White', NULL, '2026-02-25 11:41:12.514114', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('1ae5268d-55ec-4d65-b786-34167d894d97', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre0z-8', 'Jamie Martin', NULL, '2026-02-25 11:41:12.51611', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3ac75f06-cb15-4fbb-8c25-1f9a316b7dcf', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre12-9', 'Avery Thompson', NULL, '2026-02-25 11:41:12.518819', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('59b54460-bcf8-468c-9c58-e19e30bf7ac1', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre15-10', 'Quinn Garcia', NULL, '2026-02-25 11:41:12.522407', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('45f654e9-2606-45c6-bd29-a59cd36bb87a', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre18-11', 'Hayden Robinson', NULL, '2026-02-25 11:41:12.525103', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ebcbc3a5-4e08-45bb-84b9-5f7620df1199', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre1b-12', 'Peyton Clark', NULL, '2026-02-25 11:41:12.527702', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c42a4274-6ced-4006-9beb-3e9f47787016', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre1d-13', 'Skyler Lewis', NULL, '2026-02-25 11:41:12.530094', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('cf25874b-3595-4129-8a54-91cba3bafe4b', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre1g-14', 'Reese Walker', NULL, '2026-02-25 11:41:12.533301', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5f956f95-4007-48d1-9b68-63051c419d8e', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre1j-15', 'Finley Hall', NULL, '2026-02-25 11:41:12.535846', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e6c9d579-d023-4fa0-9572-f9197ce9535a', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre1m-16', 'Dakota Young', NULL, '2026-02-25 11:41:12.538531', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('714598c2-be4d-4665-896e-0bd9c7ba18d4', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre1o-17', 'Rowan King', NULL, '2026-02-25 11:41:12.541131', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3a9491a8-b731-4365-aa1d-4ae9054d9d8f', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre1r-18', 'Sage Wright', NULL, '2026-02-25 11:41:12.543819', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('94f695c6-535f-4d40-baff-ed838b9b8ec0', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre1t-19', 'Phoenix Scott', NULL, '2026-02-25 11:41:12.546262', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ce50bbe1-5154-4922-bf9a-84af33d089cf', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre1w-20', 'River Green', NULL, '2026-02-25 11:41:12.548415', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a08e01c9-c03c-4a44-ae3b-9ec7c83d0818', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre1y-21', 'Blake Adams', NULL, '2026-02-25 11:41:12.551042', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('14a00c1a-1c70-4d72-bd7c-ef2b12a7a079', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre21-22', 'Charlie Baker', NULL, '2026-02-25 11:41:12.553506', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('26a16f64-580f-4659-95c6-721ff7237c5c', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre23-23', 'Emerson Nelson', NULL, '2026-02-25 11:41:12.555941', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2f7caa0a-f9d8-450f-b752-39045d02f6cc', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre26-24', 'Harper Carter', NULL, '2026-02-25 11:41:12.55858', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('80c4cde7-c6c1-47c4-b3dd-f2b579d16c33', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre28-25', 'Kendall Mitchell', NULL, '2026-02-25 11:41:12.561149', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('03a4df2a-e9aa-4358-9201-51cf61641947', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre2b-26', 'Logan Perez', NULL, '2026-02-25 11:41:12.563884', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3a39438e-33f3-4220-a4c0-8dc5e90611ee', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'test-mm1yre2d-27', 'Parker Roberts', NULL, '2026-02-25 11:41:12.566268', 'confirmed', '50', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('253ff9e4-744e-4c0d-ab7c-afd8959855ac', '05fda9c5-7604-4c1d-96b0-8afe71e51c12', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'test 4', '[]', '2026-02-25 11:37:08.246851', 'confirmed', '200', 'team', 4, '["guest:Peter Pan", "84c28034-2aec-4c19-8115-44c57e3de087", "guest:Jimmy"]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ec7c8850-1b08-4c8a-b8d5-c30ba23d7dcb', '6befa9ca-8f0b-4c9c-931c-eedc2f35bdbc', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'test4a', '[]', '2026-02-25 12:45:39.10336', 'confirmed', '400', 'team', 4, '["bc72fed0-afab-45cb-bbca-c8baeca541ff", "guest:John", "guest:Pete"]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4ab1c453-6377-448c-88e5-270a8fad4bfe', '63d141bb-f8a4-4836-b77f-17649410356b', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '12112', '[]', '2026-02-27 09:06:05.099955', 'confirmed', '50', 'team', 2, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ca207293-4cbd-4c7a-ab4d-48e66624684c', '53c638c9-0c37-4627-b44b-2c7b856a0596', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'test', '[]', '2026-02-27 09:14:20.558978', 'confirmed', NULL, 'team', 2, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('4157ba98-6c09-4907-ae9a-67fb7d53eae5', '743f79bb-2889-4e71-af9d-c0e350259471', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'test', '[]', '2026-02-27 09:27:31.977376', 'confirmed', NULL, 'team', 2, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('9f0a8619-88d4-41e8-ac52-09d6bc416ff3', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhrq-0', 'Alex Smith', NULL, '2026-02-27 09:57:19.287417', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('1cce05d1-2820-4322-b436-2973a7eb8f02', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhru-1', 'Jordan Brown', NULL, '2026-02-27 09:57:19.291437', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6db524e2-6299-42c3-b23c-d18e9d70de85', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhry-2', 'Taylor Wilson', NULL, '2026-02-27 09:57:19.295672', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('b5521493-8be3-48c4-a28a-a5fddbc9aca1', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhs3-3', 'Casey Jones', NULL, '2026-02-27 09:57:19.299953', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('5438ecd1-ca7b-4cd5-bba0-d1912d10a287', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhs6-4', 'Morgan Davis', NULL, '2026-02-27 09:57:19.302982', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3aa0a564-92f2-4523-b393-b9e38679c3e2', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhs9-5', 'Riley Taylor', NULL, '2026-02-27 09:57:19.306138', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e6794d30-eb5f-40d3-b610-7931c1400bcd', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhsc-6', 'Drew Anderson', NULL, '2026-02-27 09:57:19.309192', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('65378732-ef1e-440a-a3eb-c946aca1bc53', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhsg-7', 'Cameron White', NULL, '2026-02-27 09:57:19.312878', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('f0dd81cb-ef92-4be0-8c95-0c300ea6b94c', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhsj-8', 'Jamie Martin', NULL, '2026-02-27 09:57:19.315963', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6c46b212-a8a8-42ec-99b8-f221bb19de96', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhsm-9', 'Avery Thompson', NULL, '2026-02-27 09:57:19.319337', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ef4e67a5-ceb0-4576-bce1-0db98a217fdb', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhsp-10', 'Quinn Garcia', NULL, '2026-02-27 09:57:19.321641', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('e4254156-13fe-4d75-964a-4f6fa6e726c4', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhss-11', 'Hayden Robinson', NULL, '2026-02-27 09:57:19.324652', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2dc38b9a-bb7c-4991-a123-f0a7cf2d1878', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhsv-12', 'Peyton Clark', NULL, '2026-02-27 09:57:19.32859', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('6609ede9-6dc6-4f4b-bce5-4be4eff221d6', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhsy-13', 'Skyler Lewis', NULL, '2026-02-27 09:57:19.331124', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('646c6d00-67e1-406d-9aa9-ed9c8c5746b6', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxht1-14', 'Reese Walker', NULL, '2026-02-27 09:57:19.334093', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('592334c7-a873-4ba3-a0af-2a4ba0874b5a', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxht4-15', 'Finley Hall', NULL, '2026-02-27 09:57:19.337121', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('3c87204c-a6dc-4496-850a-a9319997b582', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxht7-16', 'Dakota Young', NULL, '2026-02-27 09:57:19.339953', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ffaafcd0-ca87-45e2-b751-f69a6724a8bd', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhta-17', 'Rowan King', NULL, '2026-02-27 09:57:19.342848', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('a2bc90de-4d2a-44c1-80e3-1d4d1788d0dc', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhtd-18', 'Sage Wright', NULL, '2026-02-27 09:57:19.345845', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('dfb67062-14e6-477a-a201-a6ca3a5c5123', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhtg-19', 'Phoenix Scott', NULL, '2026-02-27 09:57:19.348948', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('56879419-e79c-440a-b154-b5fa541b79a9', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhti-20', 'River Green', NULL, '2026-02-27 09:57:19.354433', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('c2fc7aa9-e004-4740-9895-f5d94443ab3a', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhto-21', 'Blake Adams', NULL, '2026-02-27 09:57:19.357213', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('23c6db72-3e39-4100-851c-622cbb652c9d', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhtr-22', 'Charlie Baker', NULL, '2026-02-27 09:57:19.3602', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('40623456-4c45-4d85-b563-6e4e21a9179e', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhtu-23', 'Emerson Nelson', NULL, '2026-02-27 09:57:19.363306', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('45bd5278-031c-4274-8c79-818f8dd5a7b8', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhty-24', 'Harper Carter', NULL, '2026-02-27 09:57:19.366505', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('2f9ffb11-6210-43e3-8113-e38de3884e82', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhu0-25', 'Kendall Mitchell', NULL, '2026-02-27 09:57:19.369165', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('17924aab-d802-4ce3-96c1-875111a46c6f', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhu2-26', 'Logan Perez', NULL, '2026-02-27 09:57:19.371075', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('ed4322b4-45f6-47c0-aeed-5c2d6b06d15d', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhu5-27', 'Parker Roberts', NULL, '2026-02-27 09:57:19.374904', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('93c7f2d6-00b3-4d67-8170-1005b5992f15', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhu9-28', 'Sydney Turner', NULL, '2026-02-27 09:57:19.378061', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('d6134768-957b-4f26-99d1-76baef2efd61', '63d141bb-f8a4-4836-b77f-17649410356b', 'test-mm4pxhub-29', 'Jesse Phillips', NULL, '2026-02-27 09:57:19.380141', 'confirmed', '25', 'team', 1, '[]', NULL, '{}', NULL, '{}');
+INSERT INTO public.event_entries (id, event_id, user_id, team_name, player_names, entered_at, payment_status, payment_amount, signup_type, player_count, assigned_player_ids, score, player_scores, stripe_payment_id, player_handicaps) VALUES ('738bb506-7ef7-46ab-ad4e-6aa5b970659b', '3e796103-54f1-4fe8-ba7b-99f9e2c9e9ed', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'tst', '[]', '2026-02-28 09:14:57.053202', 'confirmed', '44', 'team', 2, '[]', NULL, '{}', NULL, '{}');
+
+
+--
+-- Data for Name: event_suggestions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.event_suggestions (id, user_id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, status, created_at, reviewed_at, reviewed_by, rejection_reason, group_event_id, approved_event_id) VALUES ('10741a8a-1953-44e9-8c30-898b723d51ea', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'Dance Night', '2026-01-21T20:03', '2026-01-21T21:39', 'Oxwich', '1 O B', 'sjort sumasasasasas', 'full dasasasasasasasasasasas', NULL, '["Music"]', NULL, 'approved', '2026-01-01 12:39:56.803413', '2026-01-01 12:40:18.236', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', NULL, NULL, NULL);
+INSERT INTO public.event_suggestions (id, user_id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, status, created_at, reviewed_at, reviewed_by, rejection_reason, group_event_id, approved_event_id) VALUES ('12d892a9-840c-449e-ba0e-726f91787937', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'test', '2026-11-11T12:12', NULL, 'public', 'kljkjkljklkjlkjlk', 'jklljkklkjkjlklj', 'jklljklkkjklkjljk', '/objects/uploads/adafb879-6d3d-40e8-a6a0-11401f522d4a', '["Festival"]', NULL, 'approved', '2026-01-10 14:08:27.492469', '2026-01-10 14:08:58.206', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL);
+INSERT INTO public.event_suggestions (id, user_id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, status, created_at, reviewed_at, reviewed_by, rejection_reason, group_event_id, approved_event_id) VALUES ('ef51bbdd-a61f-4163-af79-0a189632bd2f', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'test', '2026-11-11T11:11', NULL, 'dsfdfsfsdfsdfsdf', 'sdfsdfsdfsdfsdfdsf', 'sdfsdfsdfsdfsdfsdfsdfsdfsdfsdf', 'sfsdfdsfsdfsdfsdfdsfsdfsdfsd', '/objects/uploads/66cd3ac9-306e-41f1-9fbf-935a615a7d51', '["Sports"]', NULL, 'approved', '2026-01-11 20:56:19.199176', '2026-01-11 20:56:49.008', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, NULL, NULL);
+INSERT INTO public.event_suggestions (id, user_id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, status, created_at, reviewed_at, reviewed_by, rejection_reason, group_event_id, approved_event_id) VALUES ('4f471a21-e3cd-4dc1-9c44-32198a5d81f8', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'asasas', '2026-10-10T11:00', '2026-10-10T10:45', 'asasasas', 'asasasa', 'asasasasasasas', 'asaasasasasasasasasasas', NULL, '["Arts & Culture"]', NULL, 'rejected', '2026-01-13 10:38:09.552254', '2026-01-13 14:05:15.87', '84c28034-2aec-4c19-8115-44c57e3de087', 'bad', NULL, NULL);
+INSERT INTO public.event_suggestions (id, user_id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, status, created_at, reviewed_at, reviewed_by, rejection_reason, group_event_id, approved_event_id) VALUES ('510ba0a8-ccff-4fa7-8b49-dd5cc8e12549', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'test 1', '2026-02-26T10:00', NULL, 'test 1', 'test ', 'test', 'test', NULL, '["Festival"]', NULL, 'approved', '2026-02-23 00:52:38.46464', '2026-02-23 00:53:04.768', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, 'ede92fb7-d04b-43f9-aab3-d6ebf90e3ba7', 'ae90aa3e-f3a8-4bf4-9e06-1ad3e7fdba61');
+
+
+--
+-- Data for Name: events; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('44d0e748-a586-4cf9-b9f6-022fd3445a73', 'Test Scramble', '2026-02-13T10:00:00', NULL, 'Test Scramble', 'Test Scramble', 'Test Scramble', 'Test Scramble', '', '[]', NULL, true, 'test-scramble', true, 'ca392246-7f15-4b48-9f26-e9c1640d8b96', true, 'team_competition', 32, 4, '33', '2026-02-11T23:59:00', 'pinehurst_foursomes', false, 'prod_Tx8JSAN9WZYJGq', 'price_1SzE39S7Zj9GtKhqKUdA2umu', 'lowest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('920789d8-2059-4991-81e0-4931b95752d9', 'Test Comp', '2026-01-20T10:00:00', NULL, 'Test Comp', 'Test Comp', 'Test Comp', 'Test Comp', '/objects/uploads/8cce9439-be32-4da9-973d-ca40c268e614', '[]', NULL, false, 'test-comp', true, '4b353b57-2730-4d3d-a2dc-fc7f162f53c1', false, 'knockout', 32, 4, '20', '2026-01-18T23:59:00', NULL, false, NULL, NULL, 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('87ea9e00-8881-4332-8d31-ce8d3e053b93', 'Test the comp tabs', '2026-01-30T10:00:00', NULL, 'Test the comp tabs', 'Test the comp tabs', 'Test the comp tabs', 'Test the comp tabs', '', '[]', NULL, false, 'test-the-comp-tabs', true, 'fbb7e75d-29b2-4a76-a961-affc75a5c4a3', false, 'team_competition', 12, 3, '25', '2026-01-23T23:59:00', 'best_ball', false, NULL, NULL, 'none', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('ff670d56-ff54-468e-8711-dd637bccda5b', 'Sell NFTs', '2026-01-22T10:00:00', NULL, 'saddddddddddd', 'asdddddddddddddddd', 'NFT', 'asddddddddddddddddddddddd', '/objects/uploads/1d99689a-aba2-486c-b929-d3de3568fe8b', '[]', NULL, true, 'testtest', false, NULL, false, 'standard', NULL, NULL, NULL, NULL, NULL, false, NULL, NULL, 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('bc768859-08b3-4032-8484-bef764577794', 'Rob Demo', '2026-01-20T10:00:00', NULL, 'Rob Demo', 'Rob Demo', 'Rob Demo', 'Rob Demo', '', '[]', NULL, false, 'rob-demo', true, '0b003260-82c8-4fc8-83f9-bfdf1feefb3a', false, 'knockout', 32, 4, '20', '2026-01-18T23:59:00', NULL, false, NULL, NULL, 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('9bffed5c-15e9-40dc-9da8-3d892c02195d', 'Rob 2', '2026-01-20T10:00:00', NULL, 'Rob 2', 'Rob 2', 'Rob 2', 'Rob 2', '', '[]', NULL, false, 'rob-2', true, 'ba5f168e-011d-4edb-bc50-52f920953d44', false, 'knockout', 32, 4, '30', '2026-01-18T23:59:00', NULL, false, NULL, NULL, 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('57675f9d-62ba-4214-b268-567267dbefbd', 'Team Submit', '2026-01-20T10:00:00', NULL, 'Team Submit', 'Team Submit', 'Team Submit', 'Team Submit', '', '[]', NULL, false, 'team-submit', true, '17fc8638-fd91-44df-8d0e-00472217350f', false, 'knockout', 16, 2, '20', '2026-01-16T23:59:00', NULL, false, NULL, NULL, 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('2a1b7825-9c81-4a55-a609-d547e99a1df6', 'Golf 2026', '2026-01-20T10:00:00', NULL, 'Golf 2026', 'Golf 2026', 'Golf 2026', 'Golf 2026', '', '[]', NULL, false, 'golf-2026', true, '9ff66a14-caa4-4d05-b08c-18e1628db73a', false, 'knockout', 32, 4, '20', '2026-01-18T23:59:00', NULL, false, NULL, NULL, 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('6e2fd69b-988f-4902-a05e-2d8bf5682844', 'ko 1', '2026-01-29T10:00:00', NULL, 'ko 1', 'ko 1', 'ko 1', 'ko 1', '', '[]', '', false, 'ko-1', true, NULL, false, 'knockout', 32, 2, '11', '2026-01-22T23:59:00', NULL, false, NULL, NULL, 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('33b0ffbc-c2ec-465b-8964-77f5b67b3b44', 'Mumbles Artisan Market', '2026-01-12T10:00:00', '2026-02-20T18:00:00', 'Oystermouth Square', 'Oystermouth Square, Mumbles, SA3 4DA', 'Browse local crafts, artisan food, and vintage finds at our monthly market.', 'The Mumbles Artisan Market brings together...', 'https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=800&h=400&fit=crop', '["music","cats","dogs"]', NULL, true, 'mumbles-artisan-market', true, '33cfacbd-5648-4614-947f-dd4ea485d98d', true, 'standard', NULL, NULL, NULL, NULL, NULL, false, NULL, NULL, 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('82396200-0443-42d4-940d-40329f33cc51', '20 Team', '2026-01-30T10:00:00', NULL, '20 Team', '20 Team20 Team', '20 Team', '20 Team', '', '[]', NULL, false, '20-team', true, 'e40fd5d6-d42d-4f1f-861f-dcfc8b11ba94', false, 'team_competition', 32, 4, '22', '2026-01-22T23:59:00', 'team_stableford', true, NULL, NULL, 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('ed1622d2-978f-4d12-a4be-4ca042304e1c', 'Test Comp', '2026-01-23T10:00:00', NULL, 'Test 1', 'Test 1', 'Test 1', 'Test 1', '', '[]', NULL, false, 'test-1', true, NULL, false, 'team_competition', 30, 3, NULL, '2026-02-25T23:59:00', 'best_ball', false, NULL, NULL, 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('43046d17-9dd7-4ebb-8830-58fd30c90ba2', 'comp 2', '2026-01-26T10:00:00', NULL, 'comp 2', 'comp 2', 'comp 2', 'comp 2', '', '[]', '', false, 'comp-2', true, NULL, false, 'team_competition', 32, 2, '11', '2026-01-22T23:59:00', 'scramble', false, NULL, NULL, 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('5b6ed709-565c-4f0f-9ec8-95f8160ea9c6', 'SOcial Test', '2026-02-28T10:00:00', NULL, 'SOcial Test', 'SOcial Test', 'SOcial Test', 'SOcial TestSOcial TestSOcial Test', '', '[]', '', false, 'social-test', true, NULL, false, 'standard', NULL, NULL, NULL, NULL, NULL, false, NULL, NULL, NULL, false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('ae90aa3e-f3a8-4bf4-9e06-1ad3e7fdba61', 'test 1', '2026-02-26T10:00:00', NULL, 'test 1', 'test ', 'test', 'test', 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&h=400&fit=crop', '["Festival"]', NULL, true, 'test-1-1', false, NULL, true, 'standard', NULL, NULL, NULL, NULL, NULL, false, NULL, NULL, NULL, false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('c8dc4a50-1d71-4a19-b142-907eb740dffa', 'Ind Tst', '2026-02-12T10:00:00', NULL, 'Ind Tst', 'Ind Tst', 'Ind Tst', 'Ind Tst', '', '[]', '', false, 'ind-tst', true, NULL, false, 'team_competition', 32, 1, NULL, '2026-02-11T23:59:00', 'team_stableford', false, NULL, NULL, 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('a470df8e-0eb0-4574-ba01-11c96a5634dc', 'KO Test', '2026-02-12T10:00:00', NULL, 'KO Test', 'KO Test', 'KO Test', 'KO Test', '', '[]', '', true, 'ko-test', true, NULL, true, 'knockout', 32, 2, '11', '2026-02-11T23:59:00', 'greensomes', false, 'prod_TxAynYroj0bWhB', 'price_1SzGcjS7Zj9GtKhqfQ7scC5j', 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('37dd20a4-5905-41f8-89e0-30b96e2251a7', 'Full', '2026-02-10T10:00:00', NULL, 'Full', 'Full', 'Full', 'FullFullFull', '', '[]', NULL, true, 'full', true, '8375b287-a5ae-488c-a96c-f950008c4520', true, 'knockout', 32, 2, '22', '2026-02-10T23:59:00', NULL, false, 'prod_TwUcDLnWYExKNE', 'price_1Sybd7S7Zj9GtKhqSokAUDFi', 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('7662088f-be90-46e2-a338-2e4f26e201cb', 'one', '2026-02-09T10:00:00', NULL, 'oen', 'ne', 'oe', 'one', 'one', '[]', '', false, 'one', true, NULL, false, 'knockout', 32, 1, '11', '2026-02-09T23:59:00', NULL, false, 'prod_TwX8SQvhwkIm4q', 'price_1Sye3xS7Zj9GtKhq8j6H5EMk', 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('53c638c9-0c37-4627-b44b-2c7b856a0596', 'test', '2026-02-28T10:00:00', NULL, 'testtest', 'testtest', 'testtesttest', 'testtesttesttest', '', '[]', '', false, 'test', true, '3973efa4-5a4d-4836-8fce-2c61821378e3', false, 'knockout', 32, 2, NULL, NULL, 'matchplay', false, NULL, NULL, 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('6befa9ca-8f0b-4c9c-931c-eedc2f35bdbc', '2502 Second', '2026-02-28T10:00:00', NULL, '2502 Second', '2502 Second', '2502 Second', '2502 Second2502 Second2502 Second2502 Second', '', '[]', '', true, '2502-second', true, '9d102b30-bb45-4910-8809-76e988ecf349', true, 'team_competition', 32, 4, '100', '2026-02-27T23:59:00', 'team_scramble', false, 'prod_U2mpeErvv0RAdC', 'price_1T4hG5S7Zj9GtKhqcEKCbijb', 'lowest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('743f79bb-2889-4e71-af9d-c0e350259471', 'S Test', '2026-02-28T10:00:00', NULL, 'S Test', 'S Test', 'S Test', 'S TestS TestS Test', '', '[]', '', true, 's-test', true, 'ecbfefa0-0b1d-4606-8a0b-99ddb7ad2a27', false, 'team_competition', 32, 2, NULL, NULL, 'team_scramble', false, NULL, NULL, 'lowest_first', true, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('63d141bb-f8a4-4836-b77f-17649410356b', 'A Test 2', '2026-02-28T10:00:00', NULL, 'A Test 2', 'A Test 2', 'A Test 2', 'A Test 2A Test 2A Test 2A Test 2A Test 2', '', '[]', NULL, false, 'a-test-2', true, '417035c7-6ade-4f03-9ae8-ef77995fc28b', false, 'team_competition', 32, 2, '25', '2026-02-28T23:59:00', 'team_scramble', false, 'prod_U3ToLP6Jki4xDw', 'price_1T5MqmS7Zj9GtKhqwgr1iKHw', 'lowest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('40712668-41a2-4b62-b8ea-3f664eee6f61', 'Test', '2026-02-28T10:00:00', NULL, 'Test', 'Test', 'Test', 'Test', '', '[]', '', false, 'test-2', true, NULL, false, 'team_competition', 32, 2, '222', NULL, 'team_stableford', false, 'prod_U3rG14THCiYqM9', 'price_1T5jXVS7Zj9GtKhqaG3fWRpE', 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('c44290d4-e02a-48b8-a505-41a5bff3cc12', 'Test early view', '2026-02-28T10:00:00', NULL, 'Test early view', 'Test early view', 'Test early view', 'Test early view', '', '[]', NULL, false, 'test-early-view', false, NULL, false, 'team_competition', 32, 2, '22', '2026-02-27T23:59:00', 'team_stableford', false, 'prod_U1pnAiLZQOkG05', 'price_1T3m7iS7Zj9GtKhqk627KDz4', 'highest_first', false, 0);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('05fda9c5-7604-4c1d-96b0-8afe71e51c12', 'Test Comp 2502', '2026-02-28T10:00:00', NULL, 'Test Comp 2502', 'Test Comp 2502', 'Test Comp 2502', 'Test Comp 2502Test Comp 2502Test Comp 2502', '', '[]', '', true, 'test-comp-2502', true, 'd6e43bb0-f7b4-416d-a9e1-51dc57784c6a', true, 'team_competition', 32, 4, '50', '2026-02-27T23:59:00', 'team_scramble', false, 'prod_U2lvBdFp0sXirR', 'price_1T4gNMS7Zj9GtKhqy9MgjJXW', 'lowest_first', false, 32);
+INSERT INTO public.events (id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, is_featured, slug, is_event_group, linked_group_id, is_carousel, event_type, max_entries, team_size, entry_fee, signup_deadline, competition_format, allow_individual_stableford, stripe_product_id, stripe_price_id, league_table_sort_order, allow_team_handicap, admin_last_seen_entrant_count) VALUES ('3e796103-54f1-4fe8-ba7b-99f9e2c9e9ed', 'test group ko', '2026-02-28T10:00:00', NULL, 'test group ko', 'test group ko', 'test group ko', 'test group kotest group kotest group kotest group ko', '', '[]', NULL, false, 'test-group-ko', true, 'a48c14c9-fd13-4904-89b8-f3775a1c43f3', false, 'knockout', 32, 2, '22', NULL, 'matchplay', false, 'prod_U3rG73NClvvu1w', 'price_1T5jYPS7Zj9GtKhqVHWHQu6d', 'highest_first', false, 2);
+
+
+--
+-- Data for Name: group_event_comments; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.group_event_comments (id, event_id, user_id, parent_comment_id, content, created_at) VALUES ('ee34b7f5-281d-45c5-91a8-dff917439ad6', '798f3154-a01a-4788-b392-d9c5a10cc081', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, 'great', '2026-01-10 13:49:41.309666');
+INSERT INTO public.group_event_comments (id, event_id, user_id, parent_comment_id, content, created_at) VALUES ('580c209e-ca7d-4d71-a998-1df448e9dde0', '798f3154-a01a-4788-b392-d9c5a10cc081', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'ee34b7f5-281d-45c5-91a8-dff917439ad6', 'yes', '2026-01-10 13:51:56.277318');
+
+
+--
+-- Data for Name: group_event_reactions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.group_event_reactions (id, event_id, user_id, reaction_type) VALUES ('e773b746-bde3-4618-8d11-a7dd01d51d95', '798f3154-a01a-4788-b392-d9c5a10cc081', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'like');
+INSERT INTO public.group_event_reactions (id, event_id, user_id, reaction_type) VALUES ('f7d0aa8d-f4c3-4814-a32d-5c5168ac9894', 'efc13893-d1c2-47c4-a53d-e70fd59dd953', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'like');
+
+
+--
+-- Data for Name: group_events; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.group_events (id, group_id, user_id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, show_on_public, created_at) VALUES ('efc13893-d1c2-47c4-a53d-e70fd59dd953', 'ea1dd8d2-6cfa-4226-a4dd-e5df1fe51c10', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'Winter Swim', '2026-02-12T11:00', NULL, 'Mumbles Beach', 'AA', 'AAljljkjkkkjlk', 'AAklhljiioipop', NULL, '["Culture"]', NULL, false, '2026-01-10 13:09:19.39543');
+INSERT INTO public.group_events (id, group_id, user_id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, show_on_public, created_at) VALUES ('798f3154-a01a-4788-b392-d9c5a10cc081', 'ea1dd8d2-6cfa-4226-a4dd-e5df1fe51c10', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'Meet the players11', '2026-02-11T12:00', NULL, 'Knab Rock', 'Mumbles Road, SA3 7YY', 'Come and see the Swans players for meet and greet', 'Come and see the Swans players for meet and greetCome and see the Swans players for meet and greetCome and see the Swans players for meet and greetCome and see the Swans players for meet and greetCome and see the Swans players for meet and greetCome and see the Swans players for meet and greetCome and see the Swans players for meet and greet', '/objects/uploads/95a5c0e0-a318-46a6-a209-948c22b43e58', '[]', NULL, false, '2026-01-10 13:19:37.490503');
+INSERT INTO public.group_events (id, group_id, user_id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, show_on_public, created_at) VALUES ('ede92fb7-d04b-43f9-aab3-d6ebf90e3ba7', 'effcafdd-3d99-45d9-b272-198acd9ae30b', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'test 1', '2026-02-26T10:00', NULL, 'test 1', 'test ', 'test', 'test', NULL, '["Festival"]', NULL, false, '2026-02-23 00:52:00.870409');
+INSERT INTO public.group_events (id, group_id, user_id, name, start_date, end_date, venue_name, address, summary, description, image_url, tags, ticket_url, show_on_public, created_at) VALUES ('36dd4a5f-60fe-4f10-b033-fd0b40b28b41', 'effcafdd-3d99-45d9-b272-198acd9ae30b', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'test 2', '2026-02-25T00:00', NULL, 'test 2', 'test 2', 'test 2test 2test 2', 'test 2test 2test 2', NULL, '["Sports"]', NULL, false, '2026-02-23 01:01:20.554063');
+
+
+--
+-- Data for Name: group_memberships; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('7e3e77b6-d6e5-42e9-b33f-ae0bed2f9a18', '9ff66a14-caa4-4d05-b08c-18e1628db73a', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-15 16:27:07.729544', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('4c3b3511-4209-422e-9e5f-aaa933892e3c', '9ff66a14-caa4-4d05-b08c-18e1628db73a', '84c28034-2aec-4c19-8115-44c57e3de087', 'member', 'approved', '2026-01-15 16:28:15.93786', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('f29a47fc-189e-4c66-a7ef-9711c8262d01', '9ff66a14-caa4-4d05-b08c-18e1628db73a', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'member', 'approved', '2026-01-15 16:31:32.66209', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('63f00b72-575d-4cbc-a6e3-8f3ab1e263fa', '33cfacbd-5648-4614-947f-dd4ea485d98d', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-12 14:01:58.242044', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('4386cf6e-1578-4c3b-92fd-3c658c68afe4', 'fdc38bee-a55c-496d-a521-959d665bbb6e', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-13 21:10:50.804676', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('69584482-53f4-4265-9e70-6881624d2157', 'b8437571-43df-4be9-bf77-ef8af9092eb8', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-13 23:09:00.119317', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('47a111d4-d4fd-4f10-8a85-af1902278846', '584a4c43-6421-4973-8614-183ed0fa4430', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-14 12:05:15.219715', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('db417f2c-f0bd-42ab-a7a5-c0f5e295e6ee', 'f9fdcc40-20ba-4331-b85b-5625ca01ce3b', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-14 12:21:53.149026', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('4fe29f6e-1c8d-404d-97cc-229668a1e847', '5ea240bd-6bd2-4c74-8f54-a68b347e2a67', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-14 12:23:49.204531', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('a5275fce-f0da-46c9-8a8c-a8ff2dfab7d1', '688abb93-7e4a-461a-94e9-6e3f2c100b71', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-14 12:31:55.502061', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('20d58338-8c53-4b61-8bf2-8cb73e93ace9', '4959c665-75ad-44ed-9b55-7b3e23c0b02a', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-14 12:37:51.587268', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('d0e87e56-a970-4b46-ac3b-f0b8c3a43fe2', '5bdc2587-d6c9-40ed-81b2-d32e0abcc1ea', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-14 12:55:15.678904', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('8d8aeb56-b6d3-4f25-aecc-af3b31fce8d8', '6defeea4-4db0-4c9d-9d84-fe6d8882e31d', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-14 14:19:47.733447', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('3f270e89-fe7e-4ceb-ad34-7bd1ebb56834', '5bdc2587-d6c9-40ed-81b2-d32e0abcc1ea', '84c28034-2aec-4c19-8115-44c57e3de087', 'member', 'approved', '2026-01-14 14:21:07.217084', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('4228e68e-91e1-4f9c-86d0-c29c7603f910', '5bdc2587-d6c9-40ed-81b2-d32e0abcc1ea', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'member', 'approved', '2026-01-14 14:21:07.217084', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('9d02bcb3-1c3a-4156-8faf-36aa294b599f', '6defeea4-4db0-4c9d-9d84-fe6d8882e31d', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'member', 'approved', '2026-01-14 14:21:57.133023', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('dfa23ecc-9e6c-461c-870c-d305a8228e59', '6defeea4-4db0-4c9d-9d84-fe6d8882e31d', '84c28034-2aec-4c19-8115-44c57e3de087', 'member', 'approved', '2026-01-14 14:23:51.405694', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('3b784be4-0688-4c41-b149-7eb39a566c21', 'dc6c1cb4-c16d-4117-9d40-8cf67fa38087', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-14 14:25:49.727379', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('0a08f41c-3ed6-44c3-b671-2f030f04def5', 'dc6c1cb4-c16d-4117-9d40-8cf67fa38087', 'cf43844b-7658-4fe5-96e8-ac96a614c57c', 'member', 'approved', '2026-01-14 14:25:58.814973', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('510829fd-458d-4870-9f6c-70c67806b429', 'dc6c1cb4-c16d-4117-9d40-8cf67fa38087', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'member', 'approved', '2026-01-14 14:31:06.459376', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('988254d6-6052-4308-a4b1-ee85922e5121', 'dc6c1cb4-c16d-4117-9d40-8cf67fa38087', '84c28034-2aec-4c19-8115-44c57e3de087', 'member', 'approved', '2026-01-14 14:41:15.417397', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('9b65127a-d92e-46ab-97bb-cdac35fc1b5e', 'fe59b40d-cfd7-4f7b-8055-8062c45adef2', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-14 15:19:09.959047', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('2915bccf-841c-48bb-b774-a2ce783fbcb7', 'fe59b40d-cfd7-4f7b-8055-8062c45adef2', 'cf43844b-7658-4fe5-96e8-ac96a614c57c', 'member', 'approved', '2026-01-14 15:19:18.716514', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('f26bd3c1-b6d0-40dc-abe2-0b76ea4d92f1', 'fe59b40d-cfd7-4f7b-8055-8062c45adef2', '84c28034-2aec-4c19-8115-44c57e3de087', 'member', 'approved', '2026-01-14 15:19:21.980625', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('09c8fc73-7e85-49dd-ab84-abb419f7912d', 'fe59b40d-cfd7-4f7b-8055-8062c45adef2', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'member', 'approved', '2026-01-14 15:19:24.820467', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('73a8a3c6-fcf2-466f-b54b-ac2885489157', '4b353b57-2730-4d3d-a2dc-fc7f162f53c1', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-14 15:41:26.933791', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('b9b1c098-a563-44cf-9f78-6a382147f42c', '4b353b57-2730-4d3d-a2dc-fc7f162f53c1', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'member', 'approved', '2026-01-14 15:41:37.472137', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('d234c982-8f68-49e1-9a85-8c56d2b520af', '4b353b57-2730-4d3d-a2dc-fc7f162f53c1', '84c28034-2aec-4c19-8115-44c57e3de087', 'member', 'approved', '2026-01-14 15:41:41.655141', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('976b9a4c-ed68-4748-8806-0e69823dad3a', '0b003260-82c8-4fc8-83f9-bfdf1feefb3a', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-14 16:00:51.195156', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('f22f2158-5551-4a88-a201-a5fd05a251cd', '0b003260-82c8-4fc8-83f9-bfdf1feefb3a', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'member', 'approved', '2026-01-14 16:01:33.087254', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('5a127c71-5276-4baa-9106-c1e59de7995d', 'ba5f168e-011d-4edb-bc50-52f920953d44', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-14 16:08:31.144226', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('36356466-4081-41d9-8308-034ff25ea629', 'ba5f168e-011d-4edb-bc50-52f920953d44', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'member', 'approved', '2026-01-14 16:08:38.233168', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('47b37ee1-f34c-4d6a-aaed-5b713e8eb4ce', '17fc8638-fd91-44df-8d0e-00472217350f', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-14 22:31:54.143127', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('1b688f43-505d-4b92-abc3-4cfcab2fe8e2', '17fc8638-fd91-44df-8d0e-00472217350f', '84c28034-2aec-4c19-8115-44c57e3de087', 'member', 'approved', '2026-01-14 22:32:05.057542', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('cd00eba9-a244-4118-b2be-0a2a2b6d8607', 'effcafdd-3d99-45d9-b272-198acd9ae30b', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-18 01:51:54.84236', '2026-01-19 20:39:32.256', '8df4e439-c84b-4122-8dfb-95a3815e11ed');
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('586aaf90-a2a5-4330-a6b0-0dec841e6e1c', 'fbb7e75d-29b2-4a76-a961-affc75a5c4a3', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-20 00:25:19.397053', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('9fd660be-0cb6-4c65-9fbb-ef6dbcf6705c', 'fbb7e75d-29b2-4a76-a961-affc75a5c4a3', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'member', 'approved', '2026-01-20 00:26:02.682377', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('b68d2fbd-f8a9-4b97-b7b2-1d2550b05a6c', 'fbb7e75d-29b2-4a76-a961-affc75a5c4a3', '84c28034-2aec-4c19-8115-44c57e3de087', 'member', 'approved', '2026-01-20 00:26:05.658752', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('23161ee6-8b8b-450f-853d-18205a203155', 'e40fd5d6-d42d-4f1f-861f-dcfc8b11ba94', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-20 10:05:18.997495', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('7b6a6d59-de9a-41f0-b163-da36c7aca84a', 'e40fd5d6-d42d-4f1f-861f-dcfc8b11ba94', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'member', 'approved', '2026-01-20 10:06:14.88993', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('9d9c6351-5bef-4cd1-a22f-4b1aac259910', 'ea1dd8d2-6cfa-4226-a4dd-e5df1fe51c10', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-01-28 22:04:46.805463', '2026-01-28 22:08:42.301', '8df4e439-c84b-4122-8dfb-95a3815e11ed');
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('c1bc5fcc-33bf-4c48-87e2-c10fd79d8c1c', 'c76f5d3d-76bc-490f-8b50-6b2bf1aabf1e', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-02-03 21:30:59.889776', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('4d2a9042-5fcd-4afe-a3d7-1df908e5a2fd', 'c76f5d3d-76bc-490f-8b50-6b2bf1aabf1e', 'cf43844b-7658-4fe5-96e8-ac96a614c57c', 'member', 'approved', '2026-02-03 21:33:16.761456', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('532995cf-e40a-45f1-8fe6-79f3064ec9f5', 'c76f5d3d-76bc-490f-8b50-6b2bf1aabf1e', 'f0d1cc68-ed71-4fc3-93d2-e76c588407e7', 'member', 'approved', '2026-02-03 21:34:24.156959', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('36458a99-1f19-4476-991f-ad7ee5f59246', '8375b287-a5ae-488c-a96c-f950008c4520', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-02-08 17:19:14.455768', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('55880cc3-6144-48de-be77-e97d7f8d863b', 'ca392246-7f15-4b48-9f26-e9c1640d8b96', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'member', 'approved', '2026-02-10 10:20:39.389257', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('c4bd479e-bedd-4e58-9e21-91e53d3ff208', 'd6e43bb0-f7b4-416d-a9e1-51dc57784c6a', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'admin', 'approved', '2026-02-25 11:51:44.174512', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('a8d83cfb-65da-4ab6-a67f-dcd3d318d77a', 'd6e43bb0-f7b4-416d-a9e1-51dc57784c6a', '84c28034-2aec-4c19-8115-44c57e3de087', 'member', 'approved', '2026-02-25 11:54:59.018087', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('a52d6bc6-8d6f-4829-92a9-218a4686e286', '9d102b30-bb45-4910-8809-76e988ecf349', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'admin', 'approved', '2026-02-25 12:32:05.259701', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('2d7cb409-d9aa-41d9-bbe6-03713d26e7ba', '9d102b30-bb45-4910-8809-76e988ecf349', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'member', 'approved', '2026-02-25 12:56:20.961549', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('a80bc2e4-e3be-480a-8641-f7f67dabe6c1', '417035c7-6ade-4f03-9ae8-ef77995fc28b', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'admin', 'approved', '2026-02-27 08:56:44.362826', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('34583a91-6b7e-4bc0-bc32-0a188c882315', '3973efa4-5a4d-4836-8fce-2c61821378e3', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'admin', 'approved', '2026-02-27 09:11:41.823476', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('f4dd8f0c-14f1-41c0-b702-689f1cdb1680', 'ecbfefa0-0b1d-4606-8a0b-99ddb7ad2a27', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'admin', 'approved', '2026-02-27 09:26:56.670617', NULL, NULL);
+INSERT INTO public.group_memberships (id, group_id, user_id, role, status, requested_at, approved_at, approved_by) VALUES ('5b45c32c-579d-4307-b3d8-54c2cf77ccbc', 'a48c14c9-fd13-4904-89b8-f3775a1c43f3', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'admin', 'approved', '2026-02-28 09:11:41.905259', NULL, NULL);
+
+
+--
+-- Data for Name: group_post_comments; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.group_post_comments (id, post_id, user_id, parent_comment_id, content, created_at) VALUES ('a81ab850-6e56-4ea2-ba09-7ae8f6b8bfcc', 'dc8c035d-12b7-4dea-8a38-f102af508330', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, 'now', '2026-01-10 13:58:27.718303');
+
+
+--
+-- Data for Name: group_post_reactions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: group_posts; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.group_posts (id, group_id, user_id, content, image_urls, created_at, updated_at, edited, category, post_type) VALUES ('8516e0a2-792c-44c6-803b-39e7529bc8b6', '2b94ed04-5078-4c05-b4d5-8b1c77cebde6', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'this is mumbles
+', '[]', '2026-01-09 11:36:04.108142', NULL, false, 'Social', 'post');
+INSERT INTO public.group_posts (id, group_id, user_id, content, image_urls, created_at, updated_at, edited, category, post_type) VALUES ('377a9bb3-4bed-41a9-9bde-234ba14a01de', 'ea1dd8d2-6cfa-4226-a4dd-e5df1fe51c10', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'hi there group 1', '[]', '2026-01-10 00:58:49.278436', NULL, false, 'Social', 'post');
+INSERT INTO public.group_posts (id, group_id, user_id, content, image_urls, created_at, updated_at, edited, category, post_type) VALUES ('ecf6fd5b-7189-4432-9889-f7fe80fa3c2d', 'ea1dd8d2-6cfa-4226-a4dd-e5df1fe51c10', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'hi there 1', '[]', '2026-01-10 00:59:23.271569', NULL, false, 'Food', 'post');
+INSERT INTO public.group_posts (id, group_id, user_id, content, image_urls, created_at, updated_at, edited, category, post_type) VALUES ('ccbb457d-6c5f-47a7-b6c4-a996b9fbdb0f', '2b94ed04-5078-4c05-b4d5-8b1c77cebde6', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '12', '[]', '2026-01-10 00:59:43.423766', NULL, false, 'Social', 'post');
+INSERT INTO public.group_posts (id, group_id, user_id, content, image_urls, created_at, updated_at, edited, category, post_type) VALUES ('dc8c035d-12b7-4dea-8a38-f102af508330', 'ea1dd8d2-6cfa-4226-a4dd-e5df1fe51c10', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '1211212', '[]', '2026-01-10 01:01:47.054775', NULL, false, 'Food', 'recommendation');
+INSERT INTO public.group_posts (id, group_id, user_id, content, image_urls, created_at, updated_at, edited, category, post_type) VALUES ('b9f59cfc-36cc-44e2-8c6e-fd5ddf90cbf0', 'ea1dd8d2-6cfa-4226-a4dd-e5df1fe51c10', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'hello ther', '[]', '2026-01-10 01:06:04.891877', NULL, false, 'Social', 'post');
+INSERT INTO public.group_posts (id, group_id, user_id, content, image_urls, created_at, updated_at, edited, category, post_type) VALUES ('5d6d327d-37c2-4d14-ba62-b26689b8b258', 'ea1dd8d2-6cfa-4226-a4dd-e5df1fe51c10', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'hello', '[]', '2026-01-10 01:06:18.459906', NULL, false, 'Social', 'post');
+INSERT INTO public.group_posts (id, group_id, user_id, content, image_urls, created_at, updated_at, edited, category, post_type) VALUES ('d663a860-f226-4e79-81c9-e18760ee8e00', 'ea1dd8d2-6cfa-4226-a4dd-e5df1fe51c10', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'asasa', '[]', '2026-01-13 10:40:04.644979', NULL, false, 'Golf', 'post');
+INSERT INTO public.group_posts (id, group_id, user_id, content, image_urls, created_at, updated_at, edited, category, post_type) VALUES ('2753163c-d02a-4c8c-9530-52d284aa269e', 'fdc38bee-a55c-496d-a521-959d665bbb6e', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'tsst', '[]', '2026-01-13 22:43:19.75876', NULL, false, 'Golf', 'post');
+INSERT INTO public.group_posts (id, group_id, user_id, content, image_urls, created_at, updated_at, edited, category, post_type) VALUES ('fad3d300-9733-40b8-8f60-14ef30ab33e5', 'ba5f168e-011d-4edb-bc50-52f920953d44', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'Finley Hall has won their Quarter-Final match and advances to the next round!', '[]', '2026-01-14 21:56:05.795484', NULL, false, 'Competition', 'announcement');
+INSERT INTO public.group_posts (id, group_id, user_id, content, image_urls, created_at, updated_at, edited, category, post_type) VALUES ('3f40d551-30fd-490c-a286-747e8c748f9a', 'ba5f168e-011d-4edb-bc50-52f920953d44', 'admin', 'Parker Roberts have won their Quarter-Final match against Avery Thompson and advances to the next round!', '[]', '2026-01-14 22:10:48.83212', NULL, false, 'Competition', 'announcement');
+INSERT INTO public.group_posts (id, group_id, user_id, content, image_urls, created_at, updated_at, edited, category, post_type) VALUES ('02ac41e8-ecaa-4d2c-a227-0390ab352a90', 'ba5f168e-011d-4edb-bc50-52f920953d44', 'admin', 'Parker Roberts have won their Semi-Final match against Finley Hall and advances to the next round!', '[]', '2026-01-14 22:18:24.141675', NULL, false, 'Competition', 'announcement');
+INSERT INTO public.group_posts (id, group_id, user_id, content, image_urls, created_at, updated_at, edited, category, post_type) VALUES ('bb8e3564-e2ab-46df-9a62-8e6a011c23c9', '0b003260-82c8-4fc8-83f9-bfdf1feefb3a', 'admin', 'Riley Taylor have won their Quarter-Final match against Jamie Martin and advances to the next round!', '[]', '2026-01-14 22:23:01.826126', NULL, false, 'Competition', 'announcement');
+INSERT INTO public.group_posts (id, group_id, user_id, content, image_urls, created_at, updated_at, edited, category, post_type) VALUES ('f9de2678-d3b3-44d2-8396-a3f5f3100d1d', '0b003260-82c8-4fc8-83f9-bfdf1feefb3a', 'admin', 'Skyler Lewis, Morgan Davis, Peyton Clark and Quinn Garcia have won their Quarter-Final match against Taylor Wilson, Sage Wright, Cameron White and Hayden Robinson and advances to the next round!', '[]', '2026-01-14 22:26:22.109125', NULL, false, 'Competition', 'announcement');
+INSERT INTO public.group_posts (id, group_id, user_id, content, image_urls, created_at, updated_at, edited, category, post_type) VALUES ('564fc599-1f79-47f8-9f51-03694b316c87', '9ff66a14-caa4-4d05-b08c-18e1628db73a', 'admin', 'Dakota Young, Kendall Mitchell, Drew Anderson and Cameron White have won their Quarter-Final match against Parker Roberts, Charlie Baker, Alex Smith and Finley Hall and advances to the next round!', '[]', '2026-01-15 16:35:37.967324', NULL, false, 'Competition', 'announcement');
+INSERT INTO public.group_posts (id, group_id, user_id, content, image_urls, created_at, updated_at, edited, category, post_type) VALUES ('1c421d25-b0fb-4a02-ae91-346416ba3378', '9ff66a14-caa4-4d05-b08c-18e1628db73a', 'admin', 'Hayden Robinson, Taylor Wilson, Mumbles Mike and robertcooke have won their Quarter-Final match against Reese Walker, Phoenix Scott, Jamie Martin and Skyler Lewis and advances to the next round!', '[]', '2026-01-15 16:35:41.309578', NULL, false, 'Competition', 'announcement');
+
+
+--
+-- Data for Name: groups; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('2b94ed04-5078-4c05-b4d5-8b1c77cebde6', 'Make Friends in Mumbles', 'make-friends-in-mumbles', '', '/objects/uploads/887fda4b-5931-40da-8f8a-e0197dc19934', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-09 11:07:25.386964', true, true, NULL);
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('ea1dd8d2-6cfa-4226-a4dd-e5df1fe51c10', 'Soccer group', 'soccer-group', 'Provate', '/objects/uploads/bc9d7be6-e493-498a-a092-a4de9b6c1bd8', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-09 23:01:06.491245', true, false, NULL);
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('effcafdd-3d99-45d9-b272-198acd9ae30b', 'testte', 'testte', 'TEST', '/objects/uploads/6bd76343-e134-4dee-a808-7b2ecf213ffe', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-10 00:41:28.377278', true, false, NULL);
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('33cfacbd-5648-4614-947f-dd4ea485d98d', 'Mumbles Artisan Market', 'mumbles-artisan-market', 'Community group for Mumbles Artisan Market', 'https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=800&h=400&fit=crop', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-12 14:01:58.217238', true, false, '33b0ffbc-c2ec-465b-8964-77f5b67b3b44');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('fdc38bee-a55c-496d-a521-959d665bbb6e', 'Knock  out', 'knock-out', 'Community group for Knock  out', '/objects/uploads/0460f106-8ad5-437f-b125-e62a4baa5f7a', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-13 21:10:50.782436', true, false, 'a2507a79-d6b9-4e1a-bb93-a88b3168510c');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('b8437571-43df-4be9-bf77-ef8af9092eb8', 'Winter Knockout', 'winter-knockout', 'Community group for Winter Knockout', '/objects/uploads/1eff696d-a583-41e1-8d94-19ce2c718d61', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-13 23:09:00.109869', true, false, 'ade97168-005c-4ea7-9456-d8649854b331');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('584a4c43-6421-4973-8614-183ed0fa4430', 'Comp 2', 'comp-2', 'Community group for Comp 2', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-14 12:05:15.20753', true, false, '994eed43-ba8a-49f9-b757-8dfbcbdb1436');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('f9fdcc40-20ba-4331-b85b-5625ca01ce3b', 'Comp 1', 'comp-1', 'Community group for Comp 1', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-14 12:21:53.138371', true, false, '36a2353b-41d6-4ff0-b193-31f7b9f4f366');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('5ea240bd-6bd2-4c74-8f54-a68b347e2a67', 'comp 3', 'comp-3', 'Community group for comp 3', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-14 12:23:49.194053', true, false, 'ba4480fe-6384-4197-9af5-0da765f412ff');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('688abb93-7e4a-461a-94e9-6e3f2c100b71', '11111111111111', '11111111111111', 'Community group for 11111111111111', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-14 12:31:55.488275', true, false, 'e5bca4ad-e552-4cec-adbc-cef95128ccf0');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('4959c665-75ad-44ed-9b55-7b3e23c0b02a', 'comp 2 222222222', 'comp-2-222222222', 'Community group for comp 2 222222222', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-14 12:37:51.576659', true, false, 'f6fb7e4d-dd05-4dfd-88b7-4b34c4fdd8b3');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('5bdc2587-d6c9-40ed-81b2-d32e0abcc1ea', '333333333333333333', '333333333333333333', 'Community group for 333333333333333333', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-14 12:55:15.652836', true, false, '943eb62b-6969-451f-9ed5-dc7574a21367');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('6defeea4-4db0-4c9d-9d84-fe6d8882e31d', '44444444444', '44444444444', 'Community group for 44444444444', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-14 14:19:47.724407', true, false, '901a5979-0fea-4495-a546-44da1b756d96');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('dc6c1cb4-c16d-4117-9d40-8cf67fa38087', '11111111111111111', '11111111111111111', 'Community group for 11111111111111111', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-14 14:25:49.717413', true, false, '39a2f081-cc81-47ed-9a44-cb5ffb52f2db');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('fe59b40d-cfd7-4f7b-8055-8062c45adef2', '2222222222222222222', '2222222222222222222', 'Community group for 2222222222222222222', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-14 15:19:09.951069', true, false, '2f54390c-3758-4791-a877-b8e3b5dac8fd');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('4b353b57-2730-4d3d-a2dc-fc7f162f53c1', 'Test Comp', 'test-comp', 'Community group for Test Comp', '/objects/uploads/8cce9439-be32-4da9-973d-ca40c268e614', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-14 15:41:26.924603', true, false, '920789d8-2059-4991-81e0-4931b95752d9');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('0b003260-82c8-4fc8-83f9-bfdf1feefb3a', 'Rob Demo', 'rob-demo', 'Community group for Rob Demo', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-14 16:00:51.187399', true, false, 'bc768859-08b3-4032-8484-bef764577794');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('ba5f168e-011d-4edb-bc50-52f920953d44', 'Rob 2', 'rob-2', 'Community group for Rob 2', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-14 16:08:31.130175', true, false, '9bffed5c-15e9-40dc-9da8-3d892c02195d');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('17fc8638-fd91-44df-8d0e-00472217350f', 'Team Submit', 'team-submit', 'Community group for Team Submit', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-14 22:31:54.13548', true, false, '57675f9d-62ba-4214-b268-567267dbefbd');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('9ff66a14-caa4-4d05-b08c-18e1628db73a', 'Golf 2026', 'golf-2026', 'Community group for Golf 2026', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-15 16:27:07.720247', true, false, '2a1b7825-9c81-4a55-a609-d547e99a1df6');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('fbb7e75d-29b2-4a76-a961-affc75a5c4a3', 'Test the comp tabs', 'test-the-comp-tabs', 'Community group for Test the comp tabs', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-20 00:25:19.389056', true, false, '87ea9e00-8881-4332-8d31-ce8d3e053b93');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('e40fd5d6-d42d-4f1f-861f-dcfc8b11ba94', '20 Team', '20-team', 'Community group for 20 Team', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-01-20 10:05:18.990178', true, false, '82396200-0443-42d4-940d-40329f33cc51');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('c76f5d3d-76bc-490f-8b50-6b2bf1aabf1e', 'Test Comp Pay', 'test-comp-pay', 'Community group for Test Comp Pay', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-02-03 21:30:59.872722', true, false, '2d686342-474d-49ca-9f37-483616f375dc');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('8375b287-a5ae-488c-a96c-f950008c4520', 'Full', 'full', 'Community group for Full', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-02-08 17:19:14.448621', true, false, '37dd20a4-5905-41f8-89e0-30b96e2251a7');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('ca392246-7f15-4b48-9f26-e9c1640d8b96', 'Test Scramble', 'test-scramble', 'Community group for Test Scramble', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-02-10 10:20:39.369303', true, false, '44d0e748-a586-4cf9-b9f6-022fd3445a73');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('d6e43bb0-f7b4-416d-a9e1-51dc57784c6a', 'Test Comp 2502', 'test-comp-2502', 'Community group for Test Comp 2502', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-02-25 11:51:01.008029', true, false, '05fda9c5-7604-4c1d-96b0-8afe71e51c12');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('9d102b30-bb45-4910-8809-76e988ecf349', '2502 Second', '2502-second', 'Community group for 2502 Second', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-02-25 12:32:05.251915', true, false, '6befa9ca-8f0b-4c9c-931c-eedc2f35bdbc');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('417035c7-6ade-4f03-9ae8-ef77995fc28b', 'A Test 2', 'a-test-2', 'Community group for A Test 2', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-02-27 08:56:44.34405', true, false, '63d141bb-f8a4-4836-b77f-17649410356b');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('3973efa4-5a4d-4836-8fce-2c61821378e3', 'test', 'test', 'Community group for test', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-02-27 09:11:41.807411', true, false, '53c638c9-0c37-4627-b44b-2c7b856a0596');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('ecbfefa0-0b1d-4606-8a0b-99ddb7ad2a27', 'S Test', 's-test', 'Community group for S Test', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-02-27 09:26:56.66446', true, false, '743f79bb-2889-4e71-af9d-c0e350259471');
+INSERT INTO public.groups (id, name, slug, description, image_url, created_by, created_at, is_active, is_public, event_id) VALUES ('a48c14c9-fd13-4904-89b8-f3775a1c43f3', 'test group ko', 'test-group-ko', 'Community group for test group ko', '', '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-02-28 09:11:41.897124', true, false, '3e796103-54f1-4fe8-ba7b-99f9e2c9e9ed');
+
+
+--
+-- Data for Name: hero_settings; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.hero_settings (id, title, subtitle, image_url, cta_text, cta_link) VALUES ('21350cd0-d83b-461e-8e99-5a2d87edfa5c', 'Golf Junkies', 'Your golf web site', '/objects/uploads/04246be7-39b1-4d8d-9681-140130f33101', 'Explore Now', '/articles');
+
+
+--
+-- Data for Name: insider_tips; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.insider_tips (id, title, tip, author, is_active) VALUES ('b62a9d2f-2d26-4c27-878e-12c7c148b736', 'Best Coffee', 'Loads of great coffee places, but Mumbles coffee is my personal favourite', 'John James', true);
+
+
+--
+-- Data for Name: member_reviews; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.member_reviews (id, user_id, category, place_name, title, summary, liked, disliked, rating, image_url, status, created_at, reviewed_at, reviewed_by, slug) VALUES ('092dac27-35c6-4738-8e10-f927b0fa7f54', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'Golf Resort', 'St Andrews Hotel', 'Amazing hotel', 'LOved iitsasdasdsa', 'asdasdasdas', 'asdasdasddsa', 5, '/objects/uploads/0b8abdff-0e6e-49ff-a712-75c7d104c9a7', 'approved', '2026-01-12 12:12:47.483757', '2026-01-12 12:13:10.846', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'st-andrews-hotel-amazing-hotel-wevl4s');
+
+
+--
+-- Data for Name: messages; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.messages (id, sender_id, receiver_id, content, is_read, created_at) VALUES (1, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'asas', true, '2026-01-11 23:57:37.514399');
+INSERT INTO public.messages (id, sender_id, receiver_id, content, is_read, created_at) VALUES (2, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'asas', true, '2026-01-11 23:57:43.388944');
+INSERT INTO public.messages (id, sender_id, receiver_id, content, is_read, created_at) VALUES (3, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'aaaaaaaaaaaaaa', true, '2026-01-11 23:58:50.399531');
+INSERT INTO public.messages (id, sender_id, receiver_id, content, is_read, created_at) VALUES (4, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'what is status', true, '2026-01-12 00:03:24.532417');
+INSERT INTO public.messages (id, sender_id, receiver_id, content, is_read, created_at) VALUES (5, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'this is grea', true, '2026-01-12 00:03:30.45423');
+INSERT INTO public.messages (id, sender_id, receiver_id, content, is_read, created_at) VALUES (6, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'asas', true, '2026-01-12 00:03:33.978873');
+INSERT INTO public.messages (id, sender_id, receiver_id, content, is_read, created_at) VALUES (7, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'asas', true, '2026-01-12 00:03:37.841495');
+INSERT INTO public.messages (id, sender_id, receiver_id, content, is_read, created_at) VALUES (8, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'sdsd', true, '2026-01-12 00:06:03.824213');
+INSERT INTO public.messages (id, sender_id, receiver_id, content, is_read, created_at) VALUES (9, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'sds', true, '2026-01-12 00:06:15.387467');
+INSERT INTO public.messages (id, sender_id, receiver_id, content, is_read, created_at) VALUES (10, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'asas', true, '2026-01-12 00:08:16.858401');
+INSERT INTO public.messages (id, sender_id, receiver_id, content, is_read, created_at) VALUES (11, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'jjj', true, '2026-01-12 00:33:42.718188');
+INSERT INTO public.messages (id, sender_id, receiver_id, content, is_read, created_at) VALUES (12, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'Hi Mike woud be inrerwst', true, '2026-01-16 10:42:04.915348');
+INSERT INTO public.messages (id, sender_id, receiver_id, content, is_read, created_at) VALUES (13, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'Hi, I''d like to discuss your Play Request on February 1, 2026 at 10:00. Your preferences: Favourite Beach: langland', false, '2026-01-21 15:04:43.780086');
+INSERT INTO public.messages (id, sender_id, receiver_id, content, is_read, created_at) VALUES (14, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'Hi, I''d like to discuss your Tee Time Offer on November 11, 2026 at 12:30 PM.', false, '2026-01-22 18:16:57.389896');
+
+
+--
+-- Data for Name: newsletter_subscriptions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.newsletter_subscriptions (id, email, subscribed_at) VALUES ('71eb3037-6714-4c60-9e43-143d5c268d20', 'paul@tatatu.com', '2025-12-30T17:07:55.550Z');
+
+
+--
+-- Data for Name: play_request_criteria; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.play_request_criteria (id, play_request_id, field_id, value) VALUES (4, 2, 1, 'langland');
+INSERT INTO public.play_request_criteria (id, play_request_id, field_id, value) VALUES (12, 5, 4, 'Sheffield');
+INSERT INTO public.play_request_criteria (id, play_request_id, field_id, value) VALUES (13, 3, 3, 'wales');
+INSERT INTO public.play_request_criteria (id, play_request_id, field_id, value) VALUES (14, 3, 1, 'caswell');
+INSERT INTO public.play_request_criteria (id, play_request_id, field_id, value) VALUES (15, 6, 4, 'Swansea');
+INSERT INTO public.play_request_criteria (id, play_request_id, field_id, value) VALUES (16, 6, 3, 'wales');
+
+
+--
+-- Data for Name: play_request_offer_criteria; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.play_request_offer_criteria (id, play_request_offer_id, field_id, field_label, value) VALUES (1, 5, 4, 'Fav Town', 'Cardiff');
+INSERT INTO public.play_request_offer_criteria (id, play_request_offer_id, field_id, field_label, value) VALUES (2, 5, 2, 'What school did you go to', 'asas');
+
+
+--
+-- Data for Name: play_request_offers; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.play_request_offers (id, play_request_id, user_id, note, status, created_at, response_note, club_name) VALUES (4, 2, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'ghg', 'accepted', '2026-01-16 15:35:45.301553', 'ove it', NULL);
+INSERT INTO public.play_request_offers (id, play_request_id, user_id, note, status, created_at, response_note, club_name) VALUES (5, 6, 'cf43844b-7658-4fe5-96e8-ac96a614c57c', NULL, 'accepted', '2026-02-25 15:56:57.22926', 'yes ok', 'SCFC');
+
+
+--
+-- Data for Name: play_requests; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.play_requests (id, user_id, guests, start_date, start_time, end_date, end_time, message, status, created_at) VALUES (2, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', '{Paul}', '2026-01-01 00:00:00', '10:00', '2026-02-02 00:00:00', '12:00', 'Help for finding a game', 'active', '2026-01-16 01:20:05.042032');
+INSERT INTO public.play_requests (id, user_id, guests, start_date, start_time, end_date, end_time, message, status, created_at) VALUES (5, '8df4e439-c84b-4122-8dfb-95a3815e11ed', '{}', '2025-04-01 00:00:00', '10:00', NULL, '', '', 'active', '2026-02-23 23:08:18.343916');
+INSERT INTO public.play_requests (id, user_id, guests, start_date, start_time, end_date, end_time, message, status, created_at) VALUES (3, '8df4e439-c84b-4122-8dfb-95a3815e11ed', '{Steve,John}', '2026-04-01 00:00:00', '10:00', NULL, NULL, 'game needed', 'active', '2026-01-18 16:14:38.872441');
+INSERT INTO public.play_requests (id, user_id, guests, start_date, start_time, end_date, end_time, message, status, created_at) VALUES (6, '8df4e439-c84b-4122-8dfb-95a3815e11ed', '{Paul,Steve}', '2026-02-28 00:00:00', '10:10', NULL, '', 'I want to play', 'active', '2026-02-25 15:45:52.728504');
+
+
+--
+-- Data for Name: podcast_comments; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.podcast_comments (id, podcast_id, user_id, parent_comment_id, content, created_at, updated_at, edited) VALUES ('ab4a0c7e-8e2d-4ec3-869a-19f5fbe46ce9', '7cb5b62a-5c7a-472e-bdba-3f2783829d59', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, 'as', '2026-02-22 10:43:02.055947', NULL, false);
+
+
+--
+-- Data for Name: podcast_likes; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: podcasts; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.podcasts (id, title, slug, excerpt, content, hero_image_url, media_url, media_type, author, published_at, is_active, created_at) VALUES ('7cb5b62a-5c7a-472e-bdba-3f2783829d59', 'The “Straight Putt” Trick: Read Break Like a Pro (Zen Golf Putting Masterclass)', 'The “Straight Putt” Trick: Read Break Like a Pro (Zen Golf Putting Masterclass)', 'In Part 2 of my Zen Golf visit in Sheffield, Will (Head of Education at Zen Golf) gives me a putting lesson that completely changes how you read greens, control pace, and stop guessing the break.', '<p>In Part 2 of my Zen Golf visit in Sheffield, Will (Head of Education at Zen Golf) gives me a putting lesson that completely changes how you&nbsp;<strong>read greens</strong>,&nbsp;<strong>control pace</strong>, and stop guessing the break.</p><p>Instead of obsessing over mechanics, we learn how to&nbsp;<strong>“see gravity”</strong>&nbsp;first — by finding the&nbsp;<strong>straight putt (12 o’clock)</strong>&nbsp;using a simple&nbsp;<strong>clock-face method</strong>, then reverse-engineering the ball’s entry point from the hole back to the ball. It’s a game-changing way to build&nbsp;<strong>intent</strong>, commit to the line, and massively improve&nbsp;<strong>distance control</strong>&nbsp;(without overthinking your stroke).</p><p>If you struggle with&nbsp;<strong>pace on long putts</strong>, misread left-to-right breakers, or feel lost on slippery downhillers, this episode gives you a repeatable strategy you can take straight to the course.</p>', '/objects/uploads/95aa9be2-a93c-43ff-9bf6-6ae88341c137', 'https://top100in10.co.uk/podcast/the-straight-putt-trick-read-break-like-a-pro-zen-golf-putting-masterclass/', 'upload', 'Robert Cooke', '2026-02-22', true, '2026-02-22 10:07:09.086413');
+
+
+--
+-- Data for Name: poll_votes; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.poll_votes (id, poll_id, user_id, option_index, created_at) VALUES ('eafdba75-a97f-4718-a72a-5329e5629c00', '6aa9f8d6-3b31-4581-9426-b8ad7aa00aa8', '8df4e439-c84b-4122-8dfb-95a3815e11ed', 0, '2026-01-29 15:25:01.608004');
+
+
+--
+-- Data for Name: polls; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.polls (id, title, image_url, options, start_date, duration_hours, created_at, is_active, slug, option_images, article, boosted_votes, poll_type) VALUES ('a8a92ee5-eb7b-45b1-a284-3b4e42f23771', 'What is the best course in the world?', '/objects/uploads/7136cb71-6b6d-4f32-90aa-fbfc2cc0b17e', '["AAA", "BBB"]', '2026-01-12 11:00:00', 2400, '2026-01-12 11:01:22.578507', true, 'what-is-the-best-course-in-the-world', '[null,null]', '', 0, 'standard');
+INSERT INTO public.polls (id, title, image_url, options, start_date, duration_hours, created_at, is_active, slug, option_images, article, boosted_votes, poll_type) VALUES ('6aa9f8d6-3b31-4581-9426-b8ad7aa00aa8', 'What is the best golf club', '', '["A", "B"]', '2026-01-29 14:30:00', 1, '2026-01-29 15:24:53.314058', true, 'what-is-the-best-golf-club', '[null,null]', '', 0, 'standard');
+
+
+--
+-- Data for Name: profile_field_definitions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.profile_field_definitions (id, label, slug, field_type, description, is_required, order_index, created_at, use_on_play_requests, use_on_tee_times, use_on_play_request_offers) VALUES (2, 'What school did you go to', 'what_school_did_you_go_to', 'text', NULL, false, 2, '2026-01-11 11:54:36.206897', true, true, true);
+INSERT INTO public.profile_field_definitions (id, label, slug, field_type, description, is_required, order_index, created_at, use_on_play_requests, use_on_tee_times, use_on_play_request_offers) VALUES (4, 'Fav Town', 'fav_town', 'selector', NULL, false, 0, '2026-01-11 22:09:10.99705', true, false, true);
+INSERT INTO public.profile_field_definitions (id, label, slug, field_type, description, is_required, order_index, created_at, use_on_play_requests, use_on_tee_times, use_on_play_request_offers) VALUES (1, 'Favourite Beach', 'favourite_beach', 'select', 'Which is the best for relaxing?', false, 0, '2026-01-11 11:44:31.380479', false, true, false);
+INSERT INTO public.profile_field_definitions (id, label, slug, field_type, description, is_required, order_index, created_at, use_on_play_requests, use_on_tee_times, use_on_play_request_offers) VALUES (3, 'What country born?', 'what_country_born', 'select', NULL, false, 1, '2026-01-11 11:55:09.090111', true, true, false);
+
+
+--
+-- Data for Name: profile_field_options; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.profile_field_options (id, field_id, label, value, order_index) VALUES (1, 1, 'Mumbles', 'mumbles', 0);
+INSERT INTO public.profile_field_options (id, field_id, label, value, order_index) VALUES (2, 1, 'Langland', 'langland', 1);
+INSERT INTO public.profile_field_options (id, field_id, label, value, order_index) VALUES (3, 1, 'Caswell', 'caswell', 2);
+INSERT INTO public.profile_field_options (id, field_id, label, value, order_index) VALUES (4, 1, 'Bracelet Bay', 'bracelet_bay', 3);
+INSERT INTO public.profile_field_options (id, field_id, label, value, order_index) VALUES (5, 1, 'Other', 'other', 4);
+INSERT INTO public.profile_field_options (id, field_id, label, value, order_index) VALUES (6, 3, 'Wales', 'wales', 0);
+INSERT INTO public.profile_field_options (id, field_id, label, value, order_index) VALUES (7, 3, 'England', 'england', 1);
+INSERT INTO public.profile_field_options (id, field_id, label, value, order_index) VALUES (8, 3, 'Ireland', 'ireland', 2);
+INSERT INTO public.profile_field_options (id, field_id, label, value, order_index) VALUES (9, 3, 'Scotland', 'scotland', 3);
+INSERT INTO public.profile_field_options (id, field_id, label, value, order_index) VALUES (10, 3, 'Other', 'other', 4);
+
+
+--
+-- Data for Name: profile_field_selector_values; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.profile_field_selector_values (id, field_id, value, created_at) VALUES (13, 4, 'Swansea', '2026-01-11 22:12:24.969411');
+INSERT INTO public.profile_field_selector_values (id, field_id, value, created_at) VALUES (14, 4, 'Cardiff', '2026-01-11 22:12:24.969411');
+INSERT INTO public.profile_field_selector_values (id, field_id, value, created_at) VALUES (15, 4, 'Newport', '2026-01-11 22:12:24.969411');
+INSERT INTO public.profile_field_selector_values (id, field_id, value, created_at) VALUES (16, 4, 'Wrexham', '2026-01-11 22:12:24.969411');
+INSERT INTO public.profile_field_selector_values (id, field_id, value, created_at) VALUES (17, 4, 'Bristol', '2026-01-11 22:12:24.969411');
+INSERT INTO public.profile_field_selector_values (id, field_id, value, created_at) VALUES (18, 4, 'Swindon', '2026-01-11 22:12:24.969411');
+INSERT INTO public.profile_field_selector_values (id, field_id, value, created_at) VALUES (19, 4, 'Oxford', '2026-01-11 22:12:24.969411');
+INSERT INTO public.profile_field_selector_values (id, field_id, value, created_at) VALUES (20, 4, 'Hull', '2026-01-11 22:12:24.969411');
+INSERT INTO public.profile_field_selector_values (id, field_id, value, created_at) VALUES (21, 4, 'York', '2026-01-11 22:12:24.969411');
+INSERT INTO public.profile_field_selector_values (id, field_id, value, created_at) VALUES (22, 4, 'London', '2026-01-11 22:12:24.969411');
+INSERT INTO public.profile_field_selector_values (id, field_id, value, created_at) VALUES (23, 4, 'Leeds', '2026-01-11 22:12:24.969411');
+INSERT INTO public.profile_field_selector_values (id, field_id, value, created_at) VALUES (24, 4, 'Sheffield', '2026-01-11 22:12:24.969411');
+INSERT INTO public.profile_field_selector_values (id, field_id, value, created_at) VALUES (25, 4, 'Newcastle', '2026-01-11 22:12:24.969411');
+
+
+--
+-- Data for Name: profile_pictures; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.profile_pictures (id, user_id, image_url, caption, order_index, created_at) VALUES (2, '8df4e439-c84b-4122-8dfb-95a3815e11ed', '/objects/uploads/bcfe5501-2d68-472c-8c06-e652e031f613', 'Great coffee', 1, '2026-01-11 11:34:57.130931');
+INSERT INTO public.profile_pictures (id, user_id, image_url, caption, order_index, created_at) VALUES (1, '8df4e439-c84b-4122-8dfb-95a3815e11ed', '/objects/uploads/7217e2fe-8c65-4175-a28e-47c34f8a98bc', 'Ice cream at its best at Verdis', 0, '2026-01-11 11:31:53.735408');
+
+
+--
+-- Data for Name: ranking_votes; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: review_categories; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.review_categories (id, name, icon, order_index, created_at) VALUES (1, 'Golf Resort', 'hot-tub', 0, '2026-01-12 10:42:27.090325');
+INSERT INTO public.review_categories (id, name, icon, order_index, created_at) VALUES (5, 'Courses', 'park', 0, '2026-01-12 10:53:45.848478');
+
+
+--
+-- Data for Name: review_comments; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.review_comments (id, review_id, user_id, parent_comment_id, content, created_at, updated_at, edited) VALUES ('b2ac4650-fd8f-45e7-8958-ac13cc221408', '092dac27-35c6-4738-8e10-f927b0fa7f54', '8df4e439-c84b-4122-8dfb-95a3815e11ed', NULL, 'very good', '2026-01-12 12:23:55.003824', NULL, false);
+
+
+--
+-- Data for Name: review_likes; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.review_likes (id, review_id, user_id) VALUES ('31619ed6-26d1-4b73-a9fd-66d36d0ffc4a', '092dac27-35c6-4738-8e10-f927b0fa7f54', '8df4e439-c84b-4122-8dfb-95a3815e11ed');
+
+
+--
+-- Data for Name: sessions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.sessions (sid, sess, expire) VALUES ('-kN0wG_JU4-Vvd8yS0WNovHqHcbohxrL', '{"cookie": {"path": "/", "secure": false, "expires": "2026-03-04T15:59:38.466Z", "httpOnly": true, "originalMaxAge": 604800000}, "userId": "8df4e439-c84b-4122-8dfb-95a3815e11ed"}', '2026-03-08 23:02:05');
+
+
+--
+-- Data for Name: site_settings; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.site_settings (id, show_stay, show_events, show_reviews, show_community, updated_at, show_ecommerce, platform_name, twitter_url, instagram_url, tagline, logo_url, terms_of_service, privacy_policy, favicon_url, use_default_terms, use_default_privacy, show_connections, cta_heading, cta_description, cta_button_text, show_where_to_stay, youtube_url, linkedin_url, tiktok_url, snapchat_url, show_play, currency, show_podcasts, platform_live, fill_competition_allowed) VALUES ('a355cf70-4b93-4e23-9caa-7785bbeb0bdd', true, true, true, true, '2026-02-25 15:48:44.438', true, 'Golf Junkies', 'https://x.com/assa', NULL, 'Golf Junkies a golfing community', '/objects/uploads/821e7ca8-5c5d-48e7-8960-5c57428def1d', '<h1>Terms of Service</h1><p>Last updated: 11 January 2026</p><h2>1. Agreement to Terms</h2><p>By accessing and using asas ebsite providing information about the village of Mumbles, Swansea, including local articles, events, and accommodation listings. You may use our Site for lawful purposes only.</p><p>You agree not to:</p><ul><li><p>Use the Site in any way that violates any applicable local, national, or international law</p></li><li><p>Attempt to gain unauthorised access to any portion of the Site</p></li><li><p>Use the Site to transmit any advertising or promotional material without our prior consent</p></li><li><p>Impersonate or attempt to impersonate MumblesVibe, its employees, or other users</p></li><li><p>Engage in any conduct that restricts or inhibits anyone''s use of the Site</p></li></ul><h2>3. Intellectual Property Rights</h2><p>Unless otherwise stated, MumblesVibe and/or its licensors own the intellectual property rights for all material on this Site. All intellectual property rights are reserved.</p><p>You may view and/or print pages from the Site for your own personal use subject to restrictions set in these terms. You must not republish, sell, rent, sub-license, reproduce, duplicate, or copy material from MumblesVibe without our express written permission.</p><h2>4. User Content</h2><p>If you submit content to our Site (such as comments or newsletter subscriptions), you grant MumblesVibe a non-exclusive, royalty-free, perpetual licence to use, reproduce, edit, and authorise others to use your content in any media.</p><p>You warrant that any content you submit is accurate, does not infringe any third party''s rights, and is not defamatory, obscene, or otherwise unlawful.</p><h2>5. Third-Party Links and Services</h2><p>Our Site contains links to third-party websites and services, including Booking.com for accommodation bookings. These links are provided for your convenience only.</p><p><strong>Accommodation Bookings:</strong> When you click on accommodation listings, you may be directed to Booking.com or other third-party booking platforms. Any bookings made through these platforms are subject to their terms and conditions. MumblesVibe is not a party to any booking contract between you and the accommodation provider or booking platform.</p><p>We have no control over the content, privacy policies, or practices of any third-party sites or services. You acknowledge and agree that MumblesVibe shall not be responsible or liable for any damage or loss caused by your use of any third-party websites or services.</p><h2>6. Disclaimer of Warranties</h2><p>The information on this Site is provided "as is" without any representations or warranties, express or implied. MumblesVibe makes no representations or warranties in relation to this Site or the information and materials provided herein.</p><h2>7. Limitation of Liability</h2><p>To the maximum extent permitted by applicable law, MumblesVibe shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues.</p><h2>8. Changes to Terms</h2><p>We reserve the right to modify these terms at any time. We will notify users of any material changes by posting the updated terms on this page.</p><h2>9. Contact</h2><p>For any questions about these Terms of Service, please contact us.</p>', '<h1>Privacy Policy</h1><p>Last updated: 11 January 2026</p><h2>1. Introduction</h2><p>MumblesVibeaa ("we", "our", "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website mumblesvibe.com (the "Site").</p><p>This policy complies with the UK General Data Protection Regulation (UK GDPR) and the Data Protection Act 2018.</p><h2>2. Information We Collect</h2><h3>Personal Information</h3><p>We may collect personal information that you voluntarily provide when you:</p><ul><li><p>Subscribe to our newsletter (email address)</p></li><li><p>Contact us via our website</p></li><li><p>Submit content or enquiries</p></li></ul><h3>Automatically Collected Information</h3><p>When you visit our Site, we may automatically collect certain information including your IP address, browser type, device information, pages visited, and referring website. This information is collected using cookies and similar technologies.</p><h2>3. How We Use Your Information</h2><p>We use the information we collect to:</p><ul><li><p>Provide and maintain our Site</p></li><li><p>Send you our newsletter (if subscribed)</p></li><li><p>Respond to your enquiries</p></li><li><p>Improve our Site and services</p></li><li><p>Analyse usage patterns and trends</p></li><li><p>Comply with legal obligations</p></li></ul><h2>4. Legal Basis for Processing</h2><p>Under UK GDPR, we process your personal data based on:</p><ul><li><p><strong>Consent:</strong> Where you have given clear consent for us to process your personal data</p></li><li><p><strong>Legitimate Interests:</strong> Where processing is necessary for our legitimate business interests</p></li><li><p><strong>Legal Obligation:</strong> Where processing is necessary to comply with UK law</p></li></ul><h2>5. Cookies</h2><p>Our Site uses cookies to enhance your browsing experience. Cookies are small text files stored on your device.</p><p>We use the following types of cookies:</p><ul><li><p><strong>Essential Cookies:</strong> Required for the Site to function properly</p></li><li><p><strong>Analytics Cookies:</strong> Help us understand how visitors interact with our Site</p></li><li><p><strong>Preference Cookies:</strong> Remember your settings and preferences (e.g., dark mode)</p></li></ul><h2>6. Third-Party Services</h2><p>Our Site may contain links to third-party websites and services, including Booking.com for accommodation bookings. We are not responsible for the privacy practices of these third parties.</p><h2>7. Your Rights</h2><p>Under UK GDPR, you have the following rights:</p><ul><li><p><strong>Right of Access:</strong> Request a copy of your personal data</p></li><li><p><strong>Right to Rectification:</strong> Request correction of inaccurate data</p></li><li><p><strong>Right to Erasure:</strong> Request deletion of your personal data</p></li><li><p><strong>Right to Restrict Processing:</strong> Request limitation of processing</p></li><li><p><strong>Right to Data Portability:</strong> Request transfer of your data</p></li><li><p><strong>Right to Object:</strong> Object to processing based on legitimate interests</p></li><li><p><strong>Right to Withdraw Consent:</strong> Withdraw consent at any time</p></li></ul><h2>8. Data Retention</h2><p>We retain your personal data only for as long as necessary to fulfil the purposes for which it was collected, or as required by law.</p><h2>9. Data Security</h2><p>We implement appropriate technical and organisational measures to protect your personal data against unauthorised access, alteration, disclosure, or destruction.</p><h2>10. Contact Us</h2><p>If you have any questions about this Privacy Policy or our data practices, please contact us.</p>', '/objects/uploads/697864ef-4d7a-4b81-a71b-42f771d242ae', false, false, true, 'Want to play more Golf?', 'Have a recommendation or need one? Share with the community!!!!', 'Join the Community', false, 'https://www.youtube.com/asas', NULL, 'https://tiktok.com/asas', NULL, true, '£', true, true, true);
+
+
+--
+-- Data for Name: subscription_plans; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.subscription_plans (id, name, slug, description, price, billing_period, is_active, order_index, feature_editorial, feature_events_standard, feature_events_competitions, feature_stay, feature_reviews, feature_communities, feature_connections, feature_play, feature_play_add_request, created_at, is_default, feature_suggest_event, stripe_price_id) VALUES (1, 'Freemium', 'freemium-golf-junkies', 'Free to use platform but with limited features', 0, 'monthly', true, 1, true, true, false, false, false, false, false, true, false, '2026-01-17 14:49:44.327735', true, false, NULL);
+INSERT INTO public.subscription_plans (id, name, slug, description, price, billing_period, is_active, order_index, feature_editorial, feature_events_standard, feature_events_competitions, feature_stay, feature_reviews, feature_communities, feature_connections, feature_play, feature_play_add_request, created_at, is_default, feature_suggest_event, stripe_price_id) VALUES (3, 'Gold', 'everything', 'You get it all', 14.99, 'monthly', true, 3, true, true, true, true, true, true, true, true, true, '2026-01-17 15:07:49.76313', false, true, 'price_1SwnjUS7Zj9GtKhqavnUFWUK');
+INSERT INTO public.subscription_plans (id, name, slug, description, price, billing_period, is_active, order_index, feature_editorial, feature_events_standard, feature_events_competitions, feature_stay, feature_reviews, feature_communities, feature_connections, feature_play, feature_play_add_request, created_at, is_default, feature_suggest_event, stripe_price_id) VALUES (2, 'Silver', 'silver-golf-junkies', 'Advance solution', 9.99, 'monthly', true, 2, true, false, false, false, false, true, true, true, true, '2026-01-17 14:50:28.109879', false, false, NULL);
+
+
+--
+-- Data for Name: tee_time_offer_criteria; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.tee_time_offer_criteria (id, tee_time_offer_id, field_id, value) VALUES (2, 1, 1, 'langland');
+INSERT INTO public.tee_time_offer_criteria (id, tee_time_offer_id, field_id, value) VALUES (3, 1, 4, 'Hull');
+
+
+--
+-- Data for Name: tee_time_offers; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.tee_time_offers (id, user_id, date_time, home_club, price_per_person, available_spots, message, status, created_at) VALUES (2, 'bc72fed0-afab-45cb-bbca-c8baeca541ff', '2026-11-11 12:30:00', 'Fairwood', 26, 2, 'play with me', 'active', '2026-01-18 16:10:59.349202');
+INSERT INTO public.tee_time_offers (id, user_id, date_time, home_club, price_per_person, available_spots, message, status, created_at) VALUES (1, '8df4e439-c84b-4122-8dfb-95a3815e11ed', '2026-03-10 09:00:00', 'qwqww', 10, 3, NULL, 'active', '2026-01-18 15:33:11.09637');
+
+
+--
+-- Data for Name: tee_time_reservations; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.tee_time_reservations (id, tee_time_offer_id, user_id, spots_requested, status, response_note, created_at, guest_names) VALUES (6, 2, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 1, 'accepted', NULL, '2026-01-21 16:38:49.516161', NULL);
+
+
+--
+-- Data for Name: user_connections; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.user_connections (id, requester_id, receiver_id, status, created_at, updated_at, message) VALUES (6, '8df4e439-c84b-4122-8dfb-95a3815e11ed', '84c28034-2aec-4c19-8115-44c57e3de087', 'accepted', '2026-01-14 14:11:44.07972', '2026-01-14 14:13:00.531637', NULL);
+INSERT INTO public.user_connections (id, requester_id, receiver_id, status, created_at, updated_at, message) VALUES (8, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'cf43844b-7658-4fe5-96e8-ac96a614c57c', 'pending', '2026-01-14 21:12:53.762355', '2026-01-14 21:12:53.762355', 'i would lke to meet');
+INSERT INTO public.user_connections (id, requester_id, receiver_id, status, created_at, updated_at, message) VALUES (9, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 'bc72fed0-afab-45cb-bbca-c8baeca541ff', 'accepted', '2026-01-15 16:28:38.986038', '2026-01-15 16:31:11.382985', 'Please can we connect');
+
+
+--
+-- Data for Name: user_profile_field_values; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.user_profile_field_values (id, user_id, field_id, value) VALUES (1, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 1, 'langland');
+INSERT INTO public.user_profile_field_values (id, user_id, field_id, value) VALUES (2, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 3, 'england');
+INSERT INTO public.user_profile_field_values (id, user_id, field_id, value) VALUES (3, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 2, 'DH S');
+INSERT INTO public.user_profile_field_values (id, user_id, field_id, value) VALUES (4, '8df4e439-c84b-4122-8dfb-95a3815e11ed', 4, 'Swansea');
+
+
+--
+-- Data for Name: user_profiles; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.users (id, email, profile_image_url, created_at, updated_at, password_hash, mumbles_vibe_name, blocked, is_admin, about_me, gender, age_group, profile_pictures, is_profile_public, is_super_admin, admin_articles, admin_events, admin_reviews, admin_posts, admin_groups, subscription_plan_id, subscription_start_date, subscription_end_date, last_active_at, stripe_customer_id, stripe_subscription_id, sso_linked, sso_provider, sso_first_login_complete, admin_podcasts) VALUES ('bc72fed0-afab-45cb-bbca-c8baeca541ff', 'mumbles@mike.com', '/uploads/078534fd-a311-419c-a1a2-e904843cc3ae.png', '2025-12-31 13:32:53.944639', '2026-01-11 23:39:38.178', '$2b$10$vVR5hiO1bY3nJpufE6wTH.QoBkaM2r5VJHrNsMFGJVroaxoDuK8VS', 'Mumbles Mike', false, false, NULL, 'Prefer not to say', '25-34', '[]', true, false, false, false, false, false, false, '1', '2026-01-21 16:39:10.359', NULL, '2026-01-21 16:54:50.269', NULL, NULL, false, NULL, false, false);
+INSERT INTO public.users (id, email, profile_image_url, created_at, updated_at, password_hash, mumbles_vibe_name, blocked, is_admin, about_me, gender, age_group, profile_pictures, is_profile_public, is_super_admin, admin_articles, admin_events, admin_reviews, admin_posts, admin_groups, subscription_plan_id, subscription_start_date, subscription_end_date, last_active_at, stripe_customer_id, stripe_subscription_id, sso_linked, sso_provider, sso_first_login_complete, admin_podcasts) VALUES ('594c0899-92ac-4aef-86d4-82083317ce7f', 'steve@steve.com', NULL, '2026-01-17 15:24:37.574711', '2026-01-17 15:24:37.574711', '$2b$10$Y/BjRwKAq1ucXkSafTcat.vSi0DdYt5/1G5SglexZphaYkN.Qkuli', 'Steve', false, false, NULL, NULL, NULL, '[]', true, false, false, false, false, false, false, '3', '2026-01-17 15:27:58.668', NULL, NULL, NULL, NULL, false, NULL, false, false);
+INSERT INTO public.users (id, email, profile_image_url, created_at, updated_at, password_hash, mumbles_vibe_name, blocked, is_admin, about_me, gender, age_group, profile_pictures, is_profile_public, is_super_admin, admin_articles, admin_events, admin_reviews, admin_posts, admin_groups, subscription_plan_id, subscription_start_date, subscription_end_date, last_active_at, stripe_customer_id, stripe_subscription_id, sso_linked, sso_provider, sso_first_login_complete, admin_podcasts) VALUES ('cf43844b-7658-4fe5-96e8-ac96a614c57c', 'paul@tatatu.com', NULL, '2026-01-05 17:02:09.235369', '2026-01-05 17:02:09.235369', '$2b$10$Ow3rSbl0lQ7ejM.g.iw.UOT2Q56zoLxD/M/YSWDb9qV6GDbNhmZO2', 'CrazyKev', false, false, NULL, NULL, NULL, '[]', true, false, false, false, false, false, false, '1', '2026-02-03 21:33:03.244', NULL, '2026-02-25 15:59:23.305', 'cus_TugagT2gQd8aMY', NULL, false, NULL, false, false);
+INSERT INTO public.users (id, email, profile_image_url, created_at, updated_at, password_hash, mumbles_vibe_name, blocked, is_admin, about_me, gender, age_group, profile_pictures, is_profile_public, is_super_admin, admin_articles, admin_events, admin_reviews, admin_posts, admin_groups, subscription_plan_id, subscription_start_date, subscription_end_date, last_active_at, stripe_customer_id, stripe_subscription_id, sso_linked, sso_provider, sso_first_login_complete, admin_podcasts) VALUES ('84c28034-2aec-4c19-8115-44c57e3de087', 'robert@chainenable.com', NULL, '2026-01-13 13:54:42.739352', '2026-02-23 00:11:52.459', '$2b$10$7xIbfq6xSggkio2Ii2fYJuTFvJBhMuf56T1f2tfhhn.maugJLdA/y', 'robertcooke', false, true, NULL, NULL, NULL, '[]', true, false, true, true, false, true, false, NULL, NULL, NULL, NULL, NULL, NULL, false, NULL, false, false);
+INSERT INTO public.users (id, email, profile_image_url, created_at, updated_at, password_hash, mumbles_vibe_name, blocked, is_admin, about_me, gender, age_group, profile_pictures, is_profile_public, is_super_admin, admin_articles, admin_events, admin_reviews, admin_posts, admin_groups, subscription_plan_id, subscription_start_date, subscription_end_date, last_active_at, stripe_customer_id, stripe_subscription_id, sso_linked, sso_provider, sso_first_login_complete, admin_podcasts) VALUES ('8b7bcbe0-9930-4b51-adb5-5d3c8fda5765', 'testuser@example.com', NULL, '2026-02-05 17:20:37.539622', '2026-02-05 17:21:18.058', NULL, 'GrandD', false, false, NULL, 'Male', '35-44', '[]', true, false, false, false, false, false, false, '1', '2026-02-05 17:20:44.639', NULL, '2026-02-08 17:16:58.359', NULL, NULL, true, 'TestPlatform', true, false);
+INSERT INTO public.users (id, email, profile_image_url, created_at, updated_at, password_hash, mumbles_vibe_name, blocked, is_admin, about_me, gender, age_group, profile_pictures, is_profile_public, is_super_admin, admin_articles, admin_events, admin_reviews, admin_posts, admin_groups, subscription_plan_id, subscription_start_date, subscription_end_date, last_active_at, stripe_customer_id, stripe_subscription_id, sso_linked, sso_provider, sso_first_login_complete, admin_podcasts) VALUES ('f0d1cc68-ed71-4fc3-93d2-e76c588407e7', 'abc@abc.com', NULL, '2026-02-03 21:34:00.835077', '2026-02-03 21:34:00.835077', '$2b$10$h6cPPBOCGhe2JdbiD2pt2evzlazTdGRAvloI1A37wgAvErJ7UmE32', 'asass', false, false, NULL, NULL, NULL, '[]', true, false, false, false, false, false, false, '1', '2026-02-03 21:34:01.017', NULL, '2026-02-05 16:53:18.546', 'cus_TugcZXiNqOTkow', NULL, false, NULL, false, false);
+INSERT INTO public.users (id, email, profile_image_url, created_at, updated_at, password_hash, mumbles_vibe_name, blocked, is_admin, about_me, gender, age_group, profile_pictures, is_profile_public, is_super_admin, admin_articles, admin_events, admin_reviews, admin_posts, admin_groups, subscription_plan_id, subscription_start_date, subscription_end_date, last_active_at, stripe_customer_id, stripe_subscription_id, sso_linked, sso_provider, sso_first_login_complete, admin_podcasts) VALUES ('8df4e439-c84b-4122-8dfb-95a3815e11ed', 'paul.morgan@12yards.app', '/objects/uploads/af41fc31-3d0b-43bf-a515-8a0bf749117c', '2026-01-01 13:00:10.587161', '2026-02-23 00:15:27.656', '$2b$10$rr.Jpw7xBE7MVfZ5vvAQluU0hM63oiq7VfB.PoRnq2kX1ii0sahTq', 'DragonFly', false, true, 'I live in Mumbles all my life and love surfing', 'Male', '55-64', '["/objects/uploads/dc8a11ed-b637-4533-b73a-feea4ee0200c"]', true, true, true, true, true, true, true, '3', '2026-02-03 17:35:58.451', NULL, '2026-03-01 23:01:15.432', 'cus_Tud2CxBNsxv8dk', 'sub_1SwnuVS7Zj9GtKhqJMV3W83y', false, NULL, false, true);
+
+
+--
+-- Data for Name: vibe_comments; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: vibe_reactions; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: vibes; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
+-- Data for Name: _managed_webhooks; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+INSERT INTO stripe._managed_webhooks (id, object, url, enabled_events, description, enabled, livemode, metadata, secret, status, api_version, created, updated_at, last_synced_at, account_id) VALUES ('we_1T3b09S7Zj9GtKhqoEHkWpmd', 'webhook_endpoint', 'https://779a5a51-19de-40be-817f-a1da737e6c24-00-2w8qixopmgdxj.spock.replit.dev/api/stripe/webhook', '["charge.captured", "charge.dispute.closed", "charge.dispute.created", "charge.dispute.funds_reinstated", "charge.dispute.funds_withdrawn", "charge.dispute.updated", "charge.expired", "charge.failed", "charge.pending", "charge.refund.updated", "charge.refunded", "charge.succeeded", "charge.updated", "checkout.session.async_payment_failed", "checkout.session.async_payment_succeeded", "checkout.session.completed", "checkout.session.expired", "credit_note.created", "credit_note.updated", "credit_note.voided", "customer.created", "customer.deleted", "customer.subscription.created", "customer.subscription.deleted", "customer.subscription.paused", "customer.subscription.pending_update_applied", "customer.subscription.pending_update_expired", "customer.subscription.resumed", "customer.subscription.trial_will_end", "customer.subscription.updated", "customer.tax_id.created", "customer.tax_id.deleted", "customer.tax_id.updated", "customer.updated", "entitlements.active_entitlement_summary.updated", "invoice.created", "invoice.deleted", "invoice.finalization_failed", "invoice.finalized", "invoice.marked_uncollectible", "invoice.paid", "invoice.payment_action_required", "invoice.payment_failed", "invoice.payment_succeeded", "invoice.sent", "invoice.upcoming", "invoice.updated", "invoice.voided", "payment_intent.amount_capturable_updated", "payment_intent.canceled", "payment_intent.created", "payment_intent.partially_funded", "payment_intent.payment_failed", "payment_intent.processing", "payment_intent.requires_action", "payment_intent.succeeded", "payment_method.attached", "payment_method.automatically_updated", "payment_method.card_automatically_updated", "payment_method.detached", "payment_method.updated", "plan.created", "plan.deleted", "plan.updated", "price.created", "price.deleted", "price.updated", "product.created", "product.deleted", "product.updated", "radar.early_fraud_warning.created", "radar.early_fraud_warning.updated", "refund.created", "refund.failed", "refund.updated", "review.closed", "review.opened", "setup_intent.canceled", "setup_intent.created", "setup_intent.requires_action", "setup_intent.setup_failed", "setup_intent.succeeded", "subscription_schedule.aborted", "subscription_schedule.canceled", "subscription_schedule.completed", "subscription_schedule.created", "subscription_schedule.expiring", "subscription_schedule.released", "subscription_schedule.updated"]', NULL, NULL, false, '{"managed_by": "stripe-sync"}', 'whsec_mghw0yQf99QPhFdNFaD5BMYnMpxoldTi', 'enabled', NULL, 1771760345, '2026-02-22 11:39:06.057188+00', '2026-02-22 11:39:06.056+00', 'acct_1ObY0qS7Zj9GtKhq');
+
+
+--
+-- Data for Name: _migrations; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (0, 'initial_migration', 'c18983eedaa79cc2f6d92727d70c4f772256ef3d', '2026-02-03 17:54:38.653848');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (1, 'products', 'b99ffc23df668166b94156f438bfa41818d4e80c', '2026-02-03 17:54:38.65795');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (2, 'customers', '33e481247ddc217f4e27ad10dfe5430097981670', '2026-02-03 17:54:38.665809');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (3, 'prices', '7d5ff35640651606cc24cec8a73ff7c02492ecdf', '2026-02-03 17:54:38.675155');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (4, 'subscriptions', '2cc6121a943c2a623c604e5ab12118a57a6c329a', '2026-02-03 17:54:38.68492');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (5, 'invoices', '7fbb4ccb4ed76a830552520739aaa163559771b1', '2026-02-03 17:54:38.694365');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (6, 'charges', 'fb284ed969f033f5ce19f479b7a7e27871bddf09', '2026-02-03 17:54:38.704075');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (7, 'coupons', '7ed6ec4133f120675fd7888c0477b6281743fede', '2026-02-03 17:54:38.722248');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (8, 'disputes', '29bdb083725efe84252647f043f5f91cd0dabf43', '2026-02-03 17:54:38.730094');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (9, 'events', 'b28cb55b5b69a9f52ef519260210cd76eea3c84e', '2026-02-03 17:54:38.73971');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (10, 'payouts', '69d1050b88bba1024cea4a671f9633ce7bfe25ff', '2026-02-03 17:54:38.74924');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (11, 'plans', 'fc1ae945e86d1222a59cbcd3ae7e81a3a282a60c', '2026-02-03 17:54:38.758255');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (12, 'add_updated_at', '1d80945ef050a17a26e35e9983a58178262470f2', '2026-02-03 17:54:38.76693');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (13, 'add_subscription_items', '2aa63409bfe910add833155ad7468cdab844e0f1', '2026-02-03 17:54:38.775015');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (14, 'migrate_subscription_items', '8c2a798b44a8a0d83ede6f50ea7113064ecc1807', '2026-02-03 17:54:38.78472');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (15, 'add_customer_deleted', '6886ddfd8c129d3c4b39b59519f92618b397b395', '2026-02-03 17:54:38.789228');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (16, 'add_invoice_indexes', 'd6bb9a09d5bdf580986ed14f55db71227a4d356d', '2026-02-03 17:54:38.794486');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (17, 'drop_charges_unavailable_columns', '61cd5adec4ae2c308d2c33d1b0ed203c7d074d6a', '2026-02-03 17:54:38.805352');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (18, 'setup_intents', '1d45d0fa47fc145f636c9e3c1ea692417fbb870d', '2026-02-03 17:54:38.811174');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (19, 'payment_methods', '705bdb15b50f1a97260b4f243008b8a34d23fb09', '2026-02-03 17:54:38.825193');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (20, 'disputes_payment_intent_created_idx', '18b2cecd7c097a7ea3b3f125f228e8790288d5ca', '2026-02-03 17:54:38.836345');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (21, 'payment_intent', 'b1f194ff521b373c4c7cf220c0feadc253ebff0b', '2026-02-03 17:54:38.842293');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (22, 'adjust_plans', 'e4eae536b0bc98ee14d78e818003952636ee877c', '2026-02-03 17:54:38.854788');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (23, 'invoice_deleted', '78e864c3146174fee7d08f05226b02d931d5b2ae', '2026-02-03 17:54:38.858004');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (24, 'subscription_schedules', '85fa6adb3815619bb17e1dafb00956ff548f7332', '2026-02-03 17:54:38.861268');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (25, 'tax_ids', '3f9a1163533f9e60a53d61dae5e451ab937584d9', '2026-02-03 17:54:38.868184');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (26, 'credit_notes', 'e099b6b04ee607ee868d82af5193373c3fc266d2', '2026-02-03 17:54:38.877393');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (27, 'add_marketing_features_to_products', '6ed1774b0a9606c5937b2385d61057408193e8a7', '2026-02-03 17:54:38.887859');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (28, 'early_fraud_warning', 'e615b0b73fa13d3b0508a1956d496d516f0ebf40', '2026-02-03 17:54:38.89012');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (29, 'reviews', 'dd3f914139725a7934dc1062de4cc05aece77aea', '2026-02-03 17:54:38.90222');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (30, 'refunds', 'f76c4e273eccdc96616424d73967a9bea3baac4e', '2026-02-03 17:54:38.913974');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (31, 'add_default_price', '6d10566a68bc632831fa25332727d8ff842caec5', '2026-02-03 17:54:38.926396');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (32, 'update_subscription_items', 'e894858d46840ba4be5ea093cdc150728bd1d66f', '2026-02-03 17:54:38.929949');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (33, 'add_last_synced_at', '43124eb65b18b70c54d57d2b4fcd5dae718a200f', '2026-02-03 17:54:38.934168');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (34, 'remove_foreign_keys', 'e72ec19f3232cf6e6b7308ebab80341c2341745f', '2026-02-03 17:54:38.9398');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (35, 'checkout_sessions', 'dc294f5bb1a4d613be695160b38a714986800a75', '2026-02-03 17:54:38.945618');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (36, 'checkout_session_line_items', '82c8cfce86d68db63a9fa8de973bfe60c91342dd', '2026-02-03 17:54:38.961858');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (37, 'add_features', 'c68a2c2b7e3808eed28c8828b2ffd3a2c9bf2bd4', '2026-02-03 17:54:38.973715');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (38, 'active_entitlement', '5b3858e7a52212b01e7f338cf08e29767ab362af', '2026-02-03 17:54:38.982311');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (39, 'add_paused_to_subscription_status', '09012b5d128f6ba25b0c8f69a1203546cf1c9f10', '2026-02-03 17:54:38.997349');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (40, 'managed_webhooks', '1d453dfd0e27ff0c2de97955c4ec03919af0af7f', '2026-02-03 17:54:39.000637');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (41, 'rename_managed_webhooks', 'ad7cd1e4971a50790bf997cd157f3403d294484f', '2026-02-03 17:54:39.01648');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (42, 'convert_to_jsonb_generated_columns', 'e0703a0e5cd9d97db53d773ada1983553e37813c', '2026-02-03 17:54:39.019638');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (43, 'add_account_id', '9a6beffdd0972e3657b7118b2c5001be1f815faf', '2026-02-03 17:54:42.521807');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (44, 'make_account_id_required', '05c1e9145220e905e0c1ca5329851acaf7e9e506', '2026-02-03 17:54:42.531233');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (45, 'sync_status', '2f88c4883fa885a6eaa23b8b02da958ca77a1c21', '2026-02-03 17:54:42.540557');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (46, 'sync_status_per_account', 'b1f1f3d4fdb4b4cf4e489d4b195c7f0f97f9f27c', '2026-02-03 17:54:42.550291');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (47, 'api_key_hashes', '8046e4c57544b8eae277b057d201a28a4529ffe3', '2026-02-03 17:54:42.577102');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (48, 'rename_reserved_columns', 'e32290f655550ed308a7f2dcb5b0114e49a0558e', '2026-02-03 17:54:42.580805');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (49, 'remove_redundant_underscores_from_metadata_tables', '96d6f3a54e17d8e19abd022a030a95a6161bf73e', '2026-02-03 17:54:47.050564');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (50, 'rename_id_to_match_stripe_api', 'c5300c5a10081c033dab9961f4e3cd6a2440c2b6', '2026-02-03 17:54:47.064201');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (51, 'remove_webhook_uuid', '289bee08167858dbf4d04ca184f42681660ebb66', '2026-02-03 17:54:47.383493');
+INSERT INTO stripe._migrations (id, name, hash, executed_at) VALUES (52, 'webhook_url_uniqueness', 'd02aec1815ce3a108b8a1def1ff24e865b26db70', '2026-02-03 17:54:47.390213');
+
+
+--
+-- Data for Name: _sync_status; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+
+
+--
+-- Data for Name: accounts; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+INSERT INTO stripe.accounts (_raw_data, first_synced_at, _last_synced_at, _updated_at, api_key_hashes) VALUES ('{"id": "acct_1ObY0qS7Zj9GtKhq", "type": "standard", "object": "account", "country": "GB", "settings": {"payouts": {"schedule": {"interval": "daily", "delay_days": 2}, "statement_descriptor": null, "debit_negative_balances": true}, "branding": {"icon": null, "logo": null, "primary_color": null, "secondary_color": null}, "invoices": {"default_account_tax_ids": null, "hosted_payment_method_save": "always"}, "payments": {"statement_descriptor": "12YARDS.APP", "statement_descriptor_kana": null, "statement_descriptor_kanji": null}, "dashboard": {"timezone": "Etc/UTC", "display_name": "12yards.app"}, "card_issuing": {"tos_acceptance": {"ip": null, "date": null}}, "card_payments": {"statement_descriptor_prefix": "12YARDS", "statement_descriptor_prefix_kana": null, "statement_descriptor_prefix_kanji": null}, "paypay_payments": {}, "bacs_debit_payments": {"display_name": "Stripe", "service_user_number": "449900"}, "sepa_debit_payments": {}}, "capabilities": {"transfers": "active", "eps_payments": "active", "p24_payments": "active", "card_payments": "active", "link_payments": "active", "ideal_payments": "active", "klarna_payments": "active", "giropay_payments": "active", "bacs_debit_payments": "active", "bancontact_payments": "active", "sepa_debit_payments": "active", "revolut_pay_payments": "active", "cartes_bancaires_payments": "pending", "afterpay_clearpay_payments": "active", "us_bank_account_ach_payments": "active"}, "business_type": "company", "charges_enabled": true, "payouts_enabled": true, "default_currency": "gbp", "details_submitted": true}', '2026-02-03 17:54:48.070473+00', '2026-02-03 17:54:48.070473+00', '2026-02-03 17:54:48.070473+00', '{bda428e6d1f98b40895462e16ce1d3e7b04fbc206f4a9c511ce5d70054c47cbd}');
+
+
+--
+-- Data for Name: active_entitlements; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+
+
+--
+-- Data for Name: charges; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+INSERT INTO stripe.charges (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 18:01:13.25773+00', '2026-02-03 18:01:10+00', '{"id": "ch_3SwnuTS7Zj9GtKhq0zzm2YYf", "paid": true, "order": null, "amount": 1499, "object": "charge", "review": null, "source": null, "status": "succeeded", "created": 1770141669, "dispute": null, "invoice": null, "outcome": {"type": "authorized", "reason": null, "risk_level": "normal", "risk_score": 34, "advice_code": null, "network_status": "approved_by_network", "seller_message": "Payment complete.", "network_advice_code": null, "network_decline_code": null}, "captured": true, "currency": "gbp", "customer": "cus_Tud2CxBNsxv8dk", "disputed": false, "livemode": false, "metadata": {}, "refunded": false, "shipping": null, "application": null, "description": "Subscription creation", "destination": null, "receipt_url": "https://pay.stripe.com/receipts/invoices/CAcaFwoVYWNjdF8xT2JZMHFTN1pqOUd0S2hxKOjviMwGMgZB6y-oiG06LBagTaE118r4_JTF4hopAB9TNbzHHZJnTPNBXK7Xg_d4hkfTsG61cKTmZQpk?s=ap", "failure_code": null, "on_behalf_of": null, "fraud_details": {}, "radar_options": {}, "receipt_email": null, "transfer_data": null, "payment_intent": "pi_3SwnuTS7Zj9GtKhq0imPFJOQ", "payment_method": "pm_1SwnuRS7Zj9GtKhqV211tKiz", "receipt_number": null, "transfer_group": null, "amount_captured": 1499, "amount_refunded": 0, "application_fee": null, "billing_details": {"name": "pAUL moRGAN", "email": "paul.morgan@12yards.app", "phone": null, "tax_id": null, "address": {"city": null, "line1": null, "line2": null, "state": null, "country": "GB", "postal_code": "YO33 712"}}, "failure_message": null, "source_transfer": null, "balance_transaction": "txn_3SwnuTS7Zj9GtKhq0JpJdinH", "statement_descriptor": null, "application_fee_amount": null, "payment_method_details": {"card": {"brand": "visa", "last4": "4242", "checks": {"cvc_check": "pass", "address_line1_check": null, "address_postal_code_check": "pass"}, "wallet": null, "country": "US", "funding": "credit", "mandate": null, "network": "visa", "exp_year": 2028, "exp_month": 11, "fingerprint": "cbGoSS0p6GRupeXT", "overcapture": {"status": "unavailable", "maximum_amount_capturable": 1499}, "installments": null, "multicapture": {"status": "unavailable"}, "network_token": {"used": false}, "three_d_secure": null, "regulated_status": "unregulated", "amount_authorized": 1499, "authorization_code": "739351", "extended_authorization": {"status": "disabled"}, "network_transaction_id": "999871111838348", "incremental_authorization": {"status": "unavailable"}}, "type": "card"}, "failure_balance_transaction": null, "statement_descriptor_suffix": null, "calculated_statement_descriptor": "12YARDS.APP"}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.charges (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 21:34:49.990629+00', '2026-02-03 21:34:49+00', '{"id": "ch_3SwrFBS7Zj9GtKhq1cQqk1N9", "paid": true, "order": null, "amount": 4000, "object": "charge", "review": null, "source": null, "status": "succeeded", "created": 1770154486, "dispute": null, "invoice": null, "outcome": {"type": "authorized", "reason": null, "risk_level": "normal", "risk_score": 19, "advice_code": null, "network_status": "approved_by_network", "seller_message": "Payment complete.", "network_advice_code": null, "network_decline_code": null}, "captured": true, "currency": "gbp", "customer": "cus_TugcZXiNqOTkow", "disputed": false, "livemode": false, "metadata": {"type": "event_entry", "entryId": "7fba31fc-aba0-495c-91e6-a416250d5673", "eventId": "2d686342-474d-49ca-9f37-483616f375dc", "eventName": "Test Comp Pay"}, "refunded": false, "shipping": null, "application": null, "description": null, "destination": null, "receipt_url": "https://pay.stripe.com/receipts/payment/CAcaFwoVYWNjdF8xT2JZMHFTN1pqOUd0S2hxKPnTicwGMgaiW7ZyIQo6LBYtfF9pGM7PiytVchv-dd_XOfRC0A8XEQ3x9CVtLGCH5K4G3nxJmji_IGYu", "failure_code": null, "on_behalf_of": null, "fraud_details": {}, "radar_options": {}, "receipt_email": null, "transfer_data": null, "payment_intent": "pi_3SwrFBS7Zj9GtKhq10IE5Y92", "payment_method": "pm_1SwrFBS7Zj9GtKhqjM5UbvmH", "receipt_number": null, "transfer_group": null, "amount_captured": 4000, "amount_refunded": 0, "application_fee": null, "billing_details": {"name": "Al Davies", "email": "abc@abc.com", "phone": null, "tax_id": null, "address": {"city": null, "line1": null, "line2": null, "state": null, "country": "GB", "postal_code": "SA1 7AY"}}, "failure_message": null, "source_transfer": null, "balance_transaction": "txn_3SwrFBS7Zj9GtKhq17wWBLy7", "statement_descriptor": null, "application_fee_amount": null, "payment_method_details": {"card": {"brand": "visa", "last4": "4242", "checks": {"cvc_check": "pass", "address_line1_check": null, "address_postal_code_check": "pass"}, "wallet": null, "country": "US", "funding": "credit", "mandate": null, "network": "visa", "exp_year": 2029, "exp_month": 11, "fingerprint": "cbGoSS0p6GRupeXT", "overcapture": {"status": "unavailable", "maximum_amount_capturable": 4000}, "installments": null, "multicapture": {"status": "unavailable"}, "network_token": {"used": false}, "three_d_secure": null, "regulated_status": "unregulated", "amount_authorized": 4000, "authorization_code": "391918", "extended_authorization": {"status": "disabled"}, "network_transaction_id": "999871111838348", "incremental_authorization": {"status": "unavailable"}}, "type": "card"}, "failure_balance_transaction": null, "statement_descriptor_suffix": null, "calculated_statement_descriptor": "12YARDS.APP"}', 'acct_1ObY0qS7Zj9GtKhq');
+
+
+--
+-- Data for Name: checkout_session_line_items; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+INSERT INTO stripe.checkout_session_line_items (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 18:01:14.180284+00', '2026-02-03 18:01:13+00', '{"id": "li_1Swnu1S7Zj9GtKhqJ70LEwcV", "price": "price_1SwnjUS7Zj9GtKhqavnUFWUK", "object": "item", "currency": "gbp", "metadata": {}, "quantity": 1, "amount_tax": 0, "description": "Gold", "amount_total": 1499, "amount_discount": 0, "amount_subtotal": 1499, "checkout_session": "cs_test_b1D05Do62SB35egKNFsbeWe8M2aPRl62IX3fzPXTrBPyvO638V7oOMuJcI", "adjustable_quantity": null}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.checkout_session_line_items (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 21:34:47.78043+00', '2026-02-03 21:34:47+00', '{"id": "li_1SwrEqS7Zj9GtKhqpw3bvDtj", "price": "price_1Swr9vS7Zj9GtKhqf3LTxtfv", "object": "item", "currency": "gbp", "metadata": {}, "quantity": 1, "amount_tax": 0, "description": "Test Comp Pay", "amount_total": 4000, "amount_discount": 0, "amount_subtotal": 4000, "checkout_session": "cs_test_a17omULd9aR8BH0jEomW74PX7SoMonmOZa9aIRvjiqbrY1Izz9y8XJNqMa", "adjustable_quantity": null}', 'acct_1ObY0qS7Zj9GtKhq');
+
+
+--
+-- Data for Name: checkout_sessions; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+INSERT INTO stripe.checkout_sessions (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 18:01:13.984969+00', '2026-02-03 18:01:13+00', '{"id": "cs_test_b1D05Do62SB35egKNFsbeWe8M2aPRl62IX3fzPXTrBPyvO638V7oOMuJcI", "url": null, "mode": "subscription", "locale": null, "object": "checkout.session", "status": "complete", "consent": null, "created": 1770141641, "invoice": "in_1SwnuSS7Zj9GtKhqteOEGo1V", "ui_mode": "hosted", "currency": "gbp", "customer": "cus_Tud2CxBNsxv8dk", "livemode": false, "metadata": {}, "discounts": [], "cancel_url": "https://779a5a51-19de-40be-817f-a1da737e6c24-00-2w8qixopmgdxj.spock.replit.dev/subscription?canceled=true", "expires_at": 1770228041, "custom_text": {"submit": null, "after_submit": null, "shipping_address": null, "terms_of_service_acceptance": null}, "permissions": null, "submit_type": null, "success_url": "https://779a5a51-19de-40be-817f-a1da737e6c24-00-2w8qixopmgdxj.spock.replit.dev/subscription?success=true", "amount_total": 1499, "payment_link": null, "setup_intent": null, "subscription": "sub_1SwnuVS7Zj9GtKhqJMV3W83y", "automatic_tax": {"status": null, "enabled": false, "provider": null, "liability": null}, "client_secret": null, "custom_fields": [], "shipping_cost": null, "total_details": {"amount_tax": 0, "amount_discount": 0, "amount_shipping": 0}, "customer_email": null, "origin_context": null, "payment_intent": null, "payment_status": "paid", "recovered_from": null, "wallet_options": null, "amount_subtotal": 1499, "adaptive_pricing": {"enabled": true}, "after_expiration": null, "customer_account": null, "customer_details": {"name": "DragonFly", "email": "paul.morgan@12yards.app", "phone": null, "address": {"city": null, "line1": null, "line2": null, "state": null, "country": "GB", "postal_code": "YO33 712"}, "tax_ids": [], "tax_exempt": "none", "business_name": null, "individual_name": null}, "invoice_creation": null, "shipping_details": null, "shipping_options": [], "branding_settings": {"icon": null, "logo": null, "font_family": "default", "border_style": "rounded", "button_color": "#0074d4", "display_name": "12 Yards Limited", "background_color": "#ffffff"}, "customer_creation": null, "consent_collection": null, "client_reference_id": null, "currency_conversion": null, "payment_method_types": ["card"], "allow_promotion_codes": true, "collected_information": {"business_name": null, "individual_name": null, "shipping_details": null}, "payment_method_options": {"card": {"request_three_d_secure": "automatic"}}, "phone_number_collection": {"enabled": false}, "payment_method_collection": "always", "billing_address_collection": null, "shipping_address_collection": null, "saved_payment_method_options": {"payment_method_save": null, "payment_method_remove": "disabled", "allow_redisplay_filters": ["always"]}, "payment_method_configuration_details": null}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.checkout_sessions (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 21:34:47.645088+00', '2026-02-03 21:34:47+00', '{"id": "cs_test_a17omULd9aR8BH0jEomW74PX7SoMonmOZa9aIRvjiqbrY1Izz9y8XJNqMa", "url": null, "mode": "payment", "locale": null, "object": "checkout.session", "status": "complete", "consent": null, "created": 1770154465, "invoice": null, "ui_mode": "hosted", "currency": "gbp", "customer": "cus_TugcZXiNqOTkow", "livemode": false, "metadata": {"type": "event_entry", "entryId": "7fba31fc-aba0-495c-91e6-a416250d5673", "eventId": "2d686342-474d-49ca-9f37-483616f375dc", "stripePriceId": "price_1Swr9vS7Zj9GtKhqf3LTxtfv"}, "discounts": [], "cancel_url": "https://779a5a51-19de-40be-817f-a1da737e6c24-00-2w8qixopmgdxj.spock.replit.dev/events/test-comp-pay?payment=canceled", "expires_at": 1770240864, "custom_text": {"submit": null, "after_submit": null, "shipping_address": null, "terms_of_service_acceptance": null}, "permissions": null, "submit_type": null, "success_url": "https://779a5a51-19de-40be-817f-a1da737e6c24-00-2w8qixopmgdxj.spock.replit.dev/events/test-comp-pay?payment=success", "amount_total": 4000, "payment_link": null, "setup_intent": null, "subscription": null, "automatic_tax": {"status": null, "enabled": false, "provider": null, "liability": null}, "client_secret": null, "custom_fields": [], "shipping_cost": null, "total_details": {"amount_tax": 0, "amount_discount": 0, "amount_shipping": 0}, "customer_email": null, "origin_context": null, "payment_intent": "pi_3SwrFBS7Zj9GtKhq10IE5Y92", "payment_status": "paid", "recovered_from": null, "wallet_options": null, "amount_subtotal": 4000, "adaptive_pricing": {"enabled": true}, "after_expiration": null, "customer_account": null, "customer_details": {"name": "asass", "email": "abc@abc.com", "phone": null, "address": {"city": null, "line1": null, "line2": null, "state": null, "country": "GB", "postal_code": "SA1 7AY"}, "tax_ids": [], "tax_exempt": "none", "business_name": null, "individual_name": null}, "invoice_creation": {"enabled": false, "invoice_data": {"footer": null, "issuer": null, "metadata": {}, "description": null, "custom_fields": null, "account_tax_ids": null, "rendering_options": null}}, "shipping_details": null, "shipping_options": [], "branding_settings": {"icon": null, "logo": null, "font_family": "default", "border_style": "rounded", "button_color": "#0074d4", "display_name": "12 Yards Limited", "background_color": "#ffffff"}, "customer_creation": null, "consent_collection": null, "client_reference_id": null, "currency_conversion": null, "payment_method_types": ["card"], "allow_promotion_codes": null, "collected_information": {"business_name": null, "individual_name": null, "shipping_details": null}, "payment_method_options": {"card": {"request_three_d_secure": "automatic"}}, "phone_number_collection": {"enabled": false}, "payment_method_collection": "if_required", "billing_address_collection": null, "shipping_address_collection": null, "saved_payment_method_options": {"payment_method_save": null, "payment_method_remove": "disabled", "allow_redisplay_filters": ["always"]}, "payment_method_configuration_details": null}', 'acct_1ObY0qS7Zj9GtKhq');
+
+
+--
+-- Data for Name: coupons; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+
+
+--
+-- Data for Name: credit_notes; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+
+
+--
+-- Data for Name: customers; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+INSERT INTO stripe.customers (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 18:01:13.603955+00', '2026-02-03 18:01:08+00', '{"id": "cus_Tud2CxBNsxv8dk", "name": "DragonFly", "email": "paul.morgan@12yards.app", "phone": null, "object": "customer", "address": null, "balance": 0, "created": 1770141180, "currency": "gbp", "discount": null, "livemode": false, "metadata": {"userId": "8df4e439-c84b-4122-8dfb-95a3815e11ed"}, "shipping": null, "delinquent": false, "tax_exempt": "none", "test_clock": null, "description": null, "default_source": null, "invoice_prefix": "XJZMV3T4", "customer_account": null, "invoice_settings": {"footer": null, "custom_fields": null, "rendering_options": null, "default_payment_method": null}, "preferred_locales": []}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.customers (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 21:33:18.363505+00', '2026-02-03 21:33:17+00', '{"id": "cus_TugagT2gQd8aMY", "name": "CrazyKev", "email": "paul@tatatu.com", "phone": null, "object": "customer", "address": null, "balance": 0, "created": 1770154397, "currency": null, "discount": null, "livemode": false, "metadata": {"userId": "cf43844b-7658-4fe5-96e8-ac96a614c57c"}, "shipping": null, "delinquent": false, "tax_exempt": "none", "test_clock": null, "description": null, "default_source": null, "invoice_prefix": "7DU8LFAH", "customer_account": null, "invoice_settings": {"footer": null, "custom_fields": null, "rendering_options": null, "default_payment_method": null}, "preferred_locales": []}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.customers (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 21:34:25.419177+00', '2026-02-03 21:34:24+00', '{"id": "cus_TugcZXiNqOTkow", "name": "asass", "email": "abc@abc.com", "phone": null, "object": "customer", "address": null, "balance": 0, "created": 1770154464, "currency": null, "discount": null, "livemode": false, "metadata": {"userId": "f0d1cc68-ed71-4fc3-93d2-e76c588407e7"}, "shipping": null, "delinquent": false, "tax_exempt": "none", "test_clock": null, "description": null, "default_source": null, "invoice_prefix": "HBMARL40", "customer_account": null, "invoice_settings": {"footer": null, "custom_fields": null, "rendering_options": null, "default_payment_method": null}, "preferred_locales": []}', 'acct_1ObY0qS7Zj9GtKhq');
+
+
+--
+-- Data for Name: disputes; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+
+
+--
+-- Data for Name: early_fraud_warnings; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+
+
+--
+-- Data for Name: events; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+
+
+--
+-- Data for Name: features; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+
+
+--
+-- Data for Name: invoices; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+INSERT INTO stripe.invoices (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 18:01:14.272193+00', '2026-02-03 18:01:12+00', '{"id": "in_1SwnuSS7Zj9GtKhqteOEGo1V", "tax": null, "paid": true, "lines": {"url": "/v1/invoices/in_1SwnuSS7Zj9GtKhqteOEGo1V/lines", "data": [{"id": "il_1SwnuSS7Zj9GtKhqQkd0ULYu", "plan": {"id": "price_1SwnjUS7Zj9GtKhqavnUFWUK", "meter": null, "active": true, "amount": 1499, "object": "plan", "created": 1770140988, "product": "prod_TuczqfxiFAM5wL", "currency": "gbp", "interval": "month", "livemode": false, "metadata": {}, "nickname": null, "tiers_mode": null, "usage_type": "licensed", "amount_decimal": "1499", "billing_scheme": "per_unit", "interval_count": 1, "aggregate_usage": null, "transform_usage": null, "trial_period_days": null}, "type": "subscription", "price": {"id": "price_1SwnjUS7Zj9GtKhqavnUFWUK", "type": "recurring", "active": true, "object": "price", "created": 1770140988, "product": "prod_TuczqfxiFAM5wL", "currency": "gbp", "livemode": false, "metadata": {}, "nickname": null, "recurring": {"meter": null, "interval": "month", "usage_type": "licensed", "interval_count": 1, "aggregate_usage": null, "trial_period_days": null}, "lookup_key": null, "tiers_mode": null, "unit_amount": 1499, "tax_behavior": "unspecified", "billing_scheme": "per_unit", "custom_unit_amount": null, "transform_quantity": null, "unit_amount_decimal": "1499"}, "taxes": [], "amount": 1499, "object": "line_item", "parent": {"type": "subscription_item_details", "invoice_item_details": null, "subscription_item_details": {"proration": false, "invoice_item": null, "subscription": "sub_1SwnuVS7Zj9GtKhqJMV3W83y", "proration_details": {"credited_items": null}, "subscription_item": "si_TudAlaKDi55oBA"}}, "period": {"end": 1772560868, "start": 1770141668}, "invoice": "in_1SwnuSS7Zj9GtKhqteOEGo1V", "pricing": {"type": "price_details", "price_details": {"price": "price_1SwnjUS7Zj9GtKhqavnUFWUK", "product": "prod_TuczqfxiFAM5wL"}, "unit_amount_decimal": "1499"}, "currency": "gbp", "livemode": false, "metadata": {}, "quantity": 1, "subtotal": 1499, "discounts": [], "proration": false, "tax_rates": [], "description": "1 × Gold (at £14.99 / month)", "tax_amounts": [], "discountable": true, "subscription": "sub_1SwnuVS7Zj9GtKhqJMV3W83y", "discount_amounts": [], "proration_details": {"credited_items": null}, "subscription_item": "si_TudAlaKDi55oBA", "amount_excluding_tax": 1499, "pretax_credit_amounts": [], "unit_amount_excluding_tax": "1499"}], "object": "list", "has_more": false, "total_count": 1}, "quote": null, "total": 1499, "charge": "ch_3SwnuTS7Zj9GtKhq0zzm2YYf", "footer": null, "issuer": {"type": "self"}, "number": "E4133F34-0001", "object": "invoice", "parent": {"type": "subscription_details", "quote_details": null, "subscription_details": {"metadata": {}, "subscription": "sub_1SwnuVS7Zj9GtKhqJMV3W83y"}}, "status": "paid", "created": 1770141668, "currency": "gbp", "customer": "cus_Tud2CxBNsxv8dk", "discount": null, "due_date": null, "livemode": false, "metadata": {}, "subtotal": 1499, "attempted": true, "discounts": [], "rendering": null, "amount_due": 1499, "period_end": 1770141668, "test_clock": null, "amount_paid": 1499, "application": null, "description": null, "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ObY0qS7Zj9GtKhq/test_YWNjdF8xT2JZMHFTN1pqOUd0S2hxLF9UdWRBcFdjTHpiV01jU1AwUzNPMkh2Z0IyVEtJOWJWLDE2MDY4MjQ3NA0200SgndKg3t/pdf?s=ap", "total_taxes": [], "account_name": "12 Yards Limited", "auto_advance": false, "effective_at": 1770141668, "from_invoice": null, "on_behalf_of": null, "period_start": 1770141668, "subscription": "sub_1SwnuVS7Zj9GtKhqJMV3W83y", "attempt_count": 0, "automatic_tax": {"status": null, "enabled": false, "provider": null, "liability": null, "disabled_reason": null}, "custom_fields": null, "customer_name": "DragonFly", "shipping_cost": null, "transfer_data": null, "billing_reason": "subscription_create", "customer_email": "paul.morgan@12yards.app", "customer_phone": null, "default_source": null, "ending_balance": 0, "payment_intent": "pi_3SwnuTS7Zj9GtKhq0imPFJOQ", "receipt_number": null, "account_country": "GB", "account_tax_ids": null, "amount_overpaid": 0, "amount_shipping": 0, "latest_revision": null, "amount_remaining": 0, "customer_account": null, "customer_address": null, "customer_tax_ids": [], "paid_out_of_band": false, "payment_settings": {"default_mandate": null, "payment_method_types": ["card"], "payment_method_options": {"card": {"request_three_d_secure": "automatic"}, "payto": null, "konbini": null, "acss_debit": null, "bancontact": null, "sepa_debit": null, "us_bank_account": null, "customer_balance": null}}, "shipping_details": null, "starting_balance": 0, "collection_method": "charge_automatically", "customer_shipping": null, "default_tax_rates": [], "rendering_options": null, "total_tax_amounts": [], "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ObY0qS7Zj9GtKhq/test_YWNjdF8xT2JZMHFTN1pqOUd0S2hxLF9UdWRBcFdjTHpiV01jU1AwUzNPMkh2Z0IyVEtJOWJWLDE2MDY4MjQ3NA0200SgndKg3t?s=ap", "status_transitions": {"paid_at": 1770141669, "voided_at": null, "finalized_at": 1770141668, "marked_uncollectible_at": null}, "customer_tax_exempt": "none", "total_excluding_tax": 1499, "next_payment_attempt": null, "statement_descriptor": null, "subscription_details": {"metadata": {}}, "webhooks_delivered_at": null, "application_fee_amount": null, "default_payment_method": null, "subtotal_excluding_tax": 1499, "total_discount_amounts": [], "last_finalization_error": null, "automatically_finalizes_at": null, "total_pretax_credit_amounts": [], "pre_payment_credit_notes_amount": 0, "post_payment_credit_notes_amount": 0}', 'acct_1ObY0qS7Zj9GtKhq');
+
+
+--
+-- Data for Name: payment_intents; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+INSERT INTO stripe.payment_intents (_last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 18:01:10+00', '{"id": "pi_3SwnuTS7Zj9GtKhq0imPFJOQ", "amount": 1499, "object": "payment_intent", "review": null, "source": null, "status": "succeeded", "created": 1770141669, "invoice": null, "currency": "gbp", "customer": "cus_Tud2CxBNsxv8dk", "livemode": false, "metadata": {}, "shipping": null, "processing": null, "application": null, "canceled_at": null, "description": "Subscription creation", "next_action": null, "on_behalf_of": null, "client_secret": "pi_3SwnuTS7Zj9GtKhq0imPFJOQ_secret_rFOZWaAMQxJQKuAPvK3HG6yg7", "latest_charge": "ch_3SwnuTS7Zj9GtKhq0zzm2YYf", "receipt_email": null, "transfer_data": null, "amount_details": {"tip": {}}, "capture_method": "automatic", "payment_method": "pm_1SwnuRS7Zj9GtKhqV211tKiz", "transfer_group": null, "amount_received": 1499, "payment_details": {"order_reference": "cs_test_b1D05Do62SB35egKNFsbeWe8M2aPRl62IX3fzPXTrBPyvO638V7oOMuJcI", "customer_reference": null}, "customer_account": null, "amount_capturable": 0, "last_payment_error": null, "setup_future_usage": "off_session", "cancellation_reason": null, "confirmation_method": "automatic", "payment_method_types": ["card"], "statement_descriptor": null, "application_fee_amount": null, "payment_method_options": {"card": {"network": null, "installments": null, "mandate_options": null, "setup_future_usage": "off_session", "request_three_d_secure": "automatic"}}, "automatic_payment_methods": null, "statement_descriptor_suffix": null, "excluded_payment_method_types": null, "payment_method_configuration_details": null}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.payment_intents (_last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 21:34:46+00', '{"id": "pi_3SwrFBS7Zj9GtKhq10IE5Y92", "amount": 4000, "object": "payment_intent", "review": null, "source": null, "status": "succeeded", "created": 1770154485, "invoice": null, "currency": "gbp", "customer": "cus_TugcZXiNqOTkow", "livemode": false, "metadata": {"type": "event_entry", "entryId": "7fba31fc-aba0-495c-91e6-a416250d5673", "eventId": "2d686342-474d-49ca-9f37-483616f375dc", "eventName": "Test Comp Pay"}, "shipping": null, "processing": null, "application": null, "canceled_at": null, "description": null, "next_action": null, "on_behalf_of": null, "client_secret": "pi_3SwrFBS7Zj9GtKhq10IE5Y92_secret_0x7AA5EEFzxzfzUTB6G7dMnxM", "latest_charge": "ch_3SwrFBS7Zj9GtKhq1cQqk1N9", "receipt_email": null, "transfer_data": null, "amount_details": {"tax": {"total_tax_amount": 0}, "tip": {}, "shipping": {"amount": 0, "to_postal_code": null, "from_postal_code": null}}, "capture_method": "automatic_async", "payment_method": "pm_1SwrFBS7Zj9GtKhqjM5UbvmH", "transfer_group": null, "amount_received": 4000, "payment_details": {"order_reference": "prod_TugWAzX6ym75Mt", "customer_reference": null}, "customer_account": null, "amount_capturable": 0, "last_payment_error": null, "setup_future_usage": null, "cancellation_reason": null, "confirmation_method": "automatic", "payment_method_types": ["card"], "statement_descriptor": null, "application_fee_amount": null, "payment_method_options": {"card": {"network": null, "installments": null, "mandate_options": null, "request_three_d_secure": "automatic"}}, "automatic_payment_methods": null, "statement_descriptor_suffix": null, "excluded_payment_method_types": null, "payment_method_configuration_details": null}', 'acct_1ObY0qS7Zj9GtKhq');
+
+
+--
+-- Data for Name: payment_methods; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+INSERT INTO stripe.payment_methods (_last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 18:01:10+00', '{"id": "pm_1SwnuRS7Zj9GtKhqV211tKiz", "card": {"brand": "visa", "last4": "4242", "checks": {"cvc_check": "pass", "address_line1_check": null, "address_postal_code_check": "pass"}, "wallet": null, "country": "US", "funding": "credit", "exp_year": 2028, "networks": {"available": ["visa"], "preferred": null}, "exp_month": 11, "fingerprint": "cbGoSS0p6GRupeXT", "display_brand": "visa", "generated_from": null, "regulated_status": "unregulated", "three_d_secure_usage": {"supported": true}}, "type": "card", "object": "payment_method", "created": 1770141668, "customer": "cus_Tud2CxBNsxv8dk", "livemode": false, "metadata": {}, "allow_redisplay": "limited", "billing_details": {"name": "pAUL moRGAN", "email": "paul.morgan@12yards.app", "phone": null, "tax_id": null, "address": {"city": null, "line1": null, "line2": null, "state": null, "country": "GB", "postal_code": "YO33 712"}}, "customer_account": null}', 'acct_1ObY0qS7Zj9GtKhq');
+
+
+--
+-- Data for Name: payouts; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+
+
+--
+-- Data for Name: plans; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+
+
+--
+-- Data for Name: prices; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+INSERT INTO stripe.prices (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 18:01:14.176626+00', '2026-02-03 18:01:14.175+00', '{"id": "price_1SwnjUS7Zj9GtKhqavnUFWUK", "type": "recurring", "active": true, "object": "price", "created": 1770140988, "product": "prod_TuczqfxiFAM5wL", "currency": "gbp", "livemode": false, "metadata": {}, "nickname": null, "recurring": {"meter": null, "interval": "month", "usage_type": "licensed", "interval_count": 1, "trial_period_days": null}, "lookup_key": null, "tiers_mode": null, "unit_amount": 1499, "tax_behavior": "unspecified", "billing_scheme": "per_unit", "custom_unit_amount": null, "transform_quantity": null, "unit_amount_decimal": "1499"}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.prices (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 21:29:19.914748+00', '2026-02-03 21:29:19+00', '{"id": "price_1Swr9vS7Zj9GtKhqf3LTxtfv", "type": "one_time", "active": true, "object": "price", "created": 1770154159, "product": "prod_TugWAzX6ym75Mt", "currency": "gbp", "livemode": false, "metadata": {"type": "event_entry", "eventId": "2d686342-474d-49ca-9f37-483616f375dc"}, "nickname": null, "recurring": null, "lookup_key": null, "tiers_mode": null, "unit_amount": 4000, "tax_behavior": "unspecified", "billing_scheme": "per_unit", "custom_unit_amount": null, "transform_quantity": null, "unit_amount_decimal": "4000"}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.prices (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-08 17:18:42.143512+00', '2026-02-08 17:18:41+00', '{"id": "price_1Sybd7S7Zj9GtKhqSokAUDFi", "type": "one_time", "active": true, "object": "price", "created": 1770571121, "product": "prod_TwUcDLnWYExKNE", "currency": "gbp", "livemode": false, "metadata": {"type": "event_entry", "eventId": "37dd20a4-5905-41f8-89e0-30b96e2251a7"}, "nickname": null, "recurring": null, "lookup_key": null, "tiers_mode": null, "unit_amount": 2200, "tax_behavior": "unspecified", "billing_scheme": "per_unit", "custom_unit_amount": null, "transform_quantity": null, "unit_amount_decimal": "2200"}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.prices (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-08 19:54:33.761112+00', '2026-02-08 19:54:33+00', '{"id": "price_1Sye3xS7Zj9GtKhq8j6H5EMk", "type": "one_time", "active": true, "object": "price", "created": 1770580473, "product": "prod_TwX8SQvhwkIm4q", "currency": "gbp", "livemode": false, "metadata": {"type": "event_entry", "eventId": "7662088f-be90-46e2-a338-2e4f26e201cb"}, "nickname": null, "recurring": null, "lookup_key": null, "tiers_mode": null, "unit_amount": 1100, "tax_behavior": "unspecified", "billing_scheme": "per_unit", "custom_unit_amount": null, "transform_quantity": null, "unit_amount_decimal": "1100"}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.prices (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-10 10:20:07.790789+00', '2026-02-10 10:20:07+00', '{"id": "price_1SzE39S7Zj9GtKhqKUdA2umu", "type": "one_time", "active": true, "object": "price", "created": 1770718807, "product": "prod_Tx8JSAN9WZYJGq", "currency": "gbp", "livemode": false, "metadata": {"type": "event_entry", "eventId": "44d0e748-a586-4cf9-b9f6-022fd3445a73"}, "nickname": null, "recurring": null, "lookup_key": null, "tiers_mode": null, "unit_amount": 3300, "tax_behavior": "unspecified", "billing_scheme": "per_unit", "custom_unit_amount": null, "transform_quantity": null, "unit_amount_decimal": "3300"}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.prices (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-10 13:05:02.375942+00', '2026-02-10 13:05:01+00', '{"id": "price_1SzGcjS7Zj9GtKhqfQ7scC5j", "type": "one_time", "active": true, "object": "price", "created": 1770728701, "product": "prod_TxAynYroj0bWhB", "currency": "gbp", "livemode": false, "metadata": {"type": "event_entry", "eventId": "a470df8e-0eb0-4574-ba01-11c96a5634dc"}, "nickname": null, "recurring": null, "lookup_key": null, "tiers_mode": null, "unit_amount": 1100, "tax_behavior": "unspecified", "billing_scheme": "per_unit", "custom_unit_amount": null, "transform_quantity": null, "unit_amount_decimal": "1100"}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.prices (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-22 11:34:37.766894+00', '2026-02-22 11:34:37+00', '{"id": "price_1T3avpS7Zj9GtKhqj7P0wkPL", "type": "one_time", "active": true, "object": "price", "created": 1771760077, "product": "prod_U1eEDnByaHDvhi", "currency": "gbp", "livemode": false, "metadata": {"type": "event_entry", "eventId": "98aec9a3-99a0-49b2-8fb8-7a5e23950648"}, "nickname": null, "recurring": null, "lookup_key": null, "tiers_mode": null, "unit_amount": 2200, "tax_behavior": "unspecified", "billing_scheme": "per_unit", "custom_unit_amount": null, "transform_quantity": null, "unit_amount_decimal": "2200"}', 'acct_1ObY0qS7Zj9GtKhq');
+
+
+--
+-- Data for Name: products; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+INSERT INTO stripe.products (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 21:29:19.706254+00', '2026-02-03 21:29:19+00', '{"id": "prod_TugWAzX6ym75Mt", "url": null, "name": "Test Comp Pay", "type": "service", "active": true, "images": [], "object": "product", "created": 1770154159, "updated": 1770154159, "features": [], "livemode": false, "metadata": {"type": "event_entry", "eventId": "2d686342-474d-49ca-9f37-483616f375dc"}, "tax_code": null, "shippable": null, "attributes": [], "unit_label": null, "description": null, "default_price": null, "marketing_features": [], "package_dimensions": null, "statement_descriptor": null}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.products (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-08 17:18:41.999157+00', '2026-02-08 17:18:41+00', '{"id": "prod_TwUcDLnWYExKNE", "url": null, "name": "Full", "type": "service", "active": true, "images": [], "object": "product", "created": 1770571121, "updated": 1770571121, "features": [], "livemode": false, "metadata": {"type": "event_entry", "eventId": "37dd20a4-5905-41f8-89e0-30b96e2251a7"}, "tax_code": null, "shippable": null, "attributes": [], "unit_label": null, "description": null, "default_price": null, "marketing_features": [], "package_dimensions": null, "statement_descriptor": null}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.products (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-08 19:54:33.712798+00', '2026-02-08 19:54:33+00', '{"id": "prod_TwX8SQvhwkIm4q", "url": null, "name": "one", "type": "service", "active": true, "images": [], "object": "product", "created": 1770580473, "updated": 1770580473, "features": [], "livemode": false, "metadata": {"type": "event_entry", "eventId": "7662088f-be90-46e2-a338-2e4f26e201cb"}, "tax_code": null, "shippable": null, "attributes": [], "unit_label": null, "description": null, "default_price": null, "marketing_features": [], "package_dimensions": null, "statement_descriptor": null}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.products (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-10 10:20:07.631536+00', '2026-02-10 10:20:07+00', '{"id": "prod_Tx8JSAN9WZYJGq", "url": null, "name": "Test Scramble", "type": "service", "active": true, "images": [], "object": "product", "created": 1770718807, "updated": 1770718807, "features": [], "livemode": false, "metadata": {"type": "event_entry", "eventId": "44d0e748-a586-4cf9-b9f6-022fd3445a73"}, "tax_code": null, "shippable": null, "attributes": [], "unit_label": null, "description": null, "default_price": null, "marketing_features": [], "package_dimensions": null, "statement_descriptor": null}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.products (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-10 13:05:02.150062+00', '2026-02-10 13:05:01+00', '{"id": "prod_TxAynYroj0bWhB", "url": null, "name": "KO Test", "type": "service", "active": true, "images": [], "object": "product", "created": 1770728701, "updated": 1770728701, "features": [], "livemode": false, "metadata": {"type": "event_entry", "eventId": "a470df8e-0eb0-4574-ba01-11c96a5634dc"}, "tax_code": null, "shippable": null, "attributes": [], "unit_label": null, "description": null, "default_price": null, "marketing_features": [], "package_dimensions": null, "statement_descriptor": null}', 'acct_1ObY0qS7Zj9GtKhq');
+INSERT INTO stripe.products (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-22 11:34:37.508152+00', '2026-02-22 11:34:37+00', '{"id": "prod_U1eEDnByaHDvhi", "url": null, "name": "test 2", "type": "service", "active": true, "images": [], "object": "product", "created": 1771760077, "updated": 1771760077, "features": [], "livemode": false, "metadata": {"type": "event_entry", "eventId": "98aec9a3-99a0-49b2-8fb8-7a5e23950648"}, "tax_code": null, "shippable": null, "attributes": [], "unit_label": null, "description": null, "default_price": null, "marketing_features": [], "package_dimensions": null, "statement_descriptor": null}', 'acct_1ObY0qS7Zj9GtKhq');
+
+
+--
+-- Data for Name: refunds; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+
+
+--
+-- Data for Name: reviews; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+
+
+--
+-- Data for Name: setup_intents; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+
+
+--
+-- Data for Name: subscription_items; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+INSERT INTO stripe.subscription_items (_last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 18:32:11+00', '{"id": "si_TudAlaKDi55oBA", "plan": {"id": "price_1SwnjUS7Zj9GtKhqavnUFWUK", "meter": null, "active": true, "amount": 1499, "object": "plan", "created": 1770140988, "product": "prod_TuczqfxiFAM5wL", "currency": "gbp", "interval": "month", "livemode": false, "metadata": {}, "nickname": null, "tiers_mode": null, "usage_type": "licensed", "amount_decimal": "1499", "billing_scheme": "per_unit", "interval_count": 1, "aggregate_usage": null, "transform_usage": null, "trial_period_days": null}, "price": "price_1SwnjUS7Zj9GtKhqavnUFWUK", "object": "subscription_item", "created": 1770141669, "deleted": false, "metadata": {}, "quantity": 1, "discounts": [], "tax_rates": [], "subscription": "sub_1SwnuVS7Zj9GtKhqJMV3W83y", "billing_thresholds": null, "current_period_end": 1772560868, "current_period_start": 1770141668}', 'acct_1ObY0qS7Zj9GtKhq');
+
+
+--
+-- Data for Name: subscription_schedules; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+
+
+--
+-- Data for Name: subscriptions; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+INSERT INTO stripe.subscriptions (_updated_at, _last_synced_at, _raw_data, _account_id) VALUES ('2026-02-03 18:32:11.899791+00', '2026-02-03 18:32:11+00', '{"id": "sub_1SwnuVS7Zj9GtKhqJMV3W83y", "plan": {"id": "price_1SwnjUS7Zj9GtKhqavnUFWUK", "meter": null, "active": true, "amount": 1499, "object": "plan", "created": 1770140988, "product": "prod_TuczqfxiFAM5wL", "currency": "gbp", "interval": "month", "livemode": false, "metadata": {}, "nickname": null, "tiers_mode": null, "usage_type": "licensed", "amount_decimal": "1499", "billing_scheme": "per_unit", "interval_count": 1, "aggregate_usage": null, "transform_usage": null, "trial_period_days": null}, "items": {"url": "/v1/subscription_items?subscription=sub_1SwnuVS7Zj9GtKhqJMV3W83y", "data": [{"id": "si_TudAlaKDi55oBA", "plan": {"id": "price_1SwnjUS7Zj9GtKhqavnUFWUK", "meter": null, "active": true, "amount": 1499, "object": "plan", "created": 1770140988, "product": "prod_TuczqfxiFAM5wL", "currency": "gbp", "interval": "month", "livemode": false, "metadata": {}, "nickname": null, "tiers_mode": null, "usage_type": "licensed", "amount_decimal": "1499", "billing_scheme": "per_unit", "interval_count": 1, "aggregate_usage": null, "transform_usage": null, "trial_period_days": null}, "price": {"id": "price_1SwnjUS7Zj9GtKhqavnUFWUK", "type": "recurring", "active": true, "object": "price", "created": 1770140988, "product": "prod_TuczqfxiFAM5wL", "currency": "gbp", "livemode": false, "metadata": {}, "nickname": null, "recurring": {"meter": null, "interval": "month", "usage_type": "licensed", "interval_count": 1, "aggregate_usage": null, "trial_period_days": null}, "lookup_key": null, "tiers_mode": null, "unit_amount": 1499, "tax_behavior": "unspecified", "billing_scheme": "per_unit", "custom_unit_amount": null, "transform_quantity": null, "unit_amount_decimal": "1499"}, "object": "subscription_item", "created": 1770141669, "metadata": {}, "quantity": 1, "discounts": [], "tax_rates": [], "subscription": "sub_1SwnuVS7Zj9GtKhqJMV3W83y", "billing_thresholds": null, "current_period_end": 1772560868, "current_period_start": 1770141668}], "object": "list", "has_more": false, "total_count": 1}, "object": "subscription", "status": "active", "created": 1770141668, "currency": "gbp", "customer": "cus_Tud2CxBNsxv8dk", "discount": null, "ended_at": null, "livemode": false, "metadata": {}, "quantity": 1, "schedule": null, "cancel_at": null, "discounts": [], "trial_end": null, "start_date": 1770141668, "test_clock": null, "application": null, "canceled_at": null, "description": null, "trial_start": null, "billing_mode": {"type": "classic", "flexible": null}, "on_behalf_of": null, "automatic_tax": {"enabled": false, "liability": null, "disabled_reason": null}, "transfer_data": null, "days_until_due": null, "default_source": null, "latest_invoice": "in_1SwnuSS7Zj9GtKhqteOEGo1V", "pending_update": null, "trial_settings": {"end_behavior": {"missing_payment_method": "create_invoice"}}, "customer_account": null, "invoice_settings": {"issuer": {"type": "self"}, "account_tax_ids": null}, "pause_collection": null, "payment_settings": {"payment_method_types": ["card"], "payment_method_options": {"card": {"network": null, "request_three_d_secure": "automatic"}, "payto": null, "konbini": null, "acss_debit": null, "bancontact": null, "sepa_debit": null, "us_bank_account": null, "customer_balance": null}, "save_default_payment_method": "off"}, "collection_method": "charge_automatically", "default_tax_rates": [], "billing_thresholds": null, "current_period_end": 1772560868, "billing_cycle_anchor": 1770141668, "cancel_at_period_end": false, "cancellation_details": {"reason": null, "comment": null, "feedback": null}, "current_period_start": 1770141668, "pending_setup_intent": null, "default_payment_method": "pm_1SwnuRS7Zj9GtKhqV211tKiz", "application_fee_percent": null, "billing_cycle_anchor_config": null, "pending_invoice_item_interval": null, "next_pending_invoice_item_invoice": null}', 'acct_1ObY0qS7Zj9GtKhq');
+
+
+--
+-- Data for Name: tax_ids; Type: TABLE DATA; Schema: stripe; Owner: -
+--
+
+
+
+--
+-- Name: article_categories_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.article_categories_id_seq', 9, true);
+
+
+--
+-- Name: connection_notifications_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.connection_notifications_id_seq', 114, true);
+
+
+--
+-- Name: event_categories_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.event_categories_id_seq', 8, true);
+
+
+--
+-- Name: messages_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.messages_id_seq', 14, true);
+
+
+--
+-- Name: play_request_criteria_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.play_request_criteria_id_seq', 16, true);
+
+
+--
+-- Name: play_request_offer_criteria_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.play_request_offer_criteria_id_seq', 2, true);
+
+
+--
+-- Name: play_request_offers_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.play_request_offers_id_seq', 5, true);
+
+
+--
+-- Name: play_requests_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.play_requests_id_seq', 6, true);
+
+
+--
+-- Name: profile_field_definitions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.profile_field_definitions_id_seq', 4, true);
+
+
+--
+-- Name: profile_field_options_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.profile_field_options_id_seq', 10, true);
+
+
+--
+-- Name: profile_field_selector_values_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.profile_field_selector_values_id_seq', 25, true);
+
+
+--
+-- Name: profile_pictures_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.profile_pictures_id_seq', 2, true);
+
+
+--
+-- Name: review_categories_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.review_categories_id_seq', 5, true);
+
+
+--
+-- Name: subscription_plans_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.subscription_plans_id_seq', 3, true);
+
+
+--
+-- Name: tee_time_offer_criteria_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.tee_time_offer_criteria_id_seq', 3, true);
+
+
+--
+-- Name: tee_time_offers_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.tee_time_offers_id_seq', 4, true);
+
+
+--
+-- Name: tee_time_reservations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.tee_time_reservations_id_seq', 6, true);
+
+
+--
+-- Name: user_connections_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.user_connections_id_seq', 9, true);
+
+
+--
+-- Name: user_profile_field_values_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.user_profile_field_values_id_seq', 4, true);
+
+
+--
+-- Name: _sync_status_id_seq; Type: SEQUENCE SET; Schema: stripe; Owner: -
+--
+
+SELECT pg_catalog.setval('stripe._sync_status_id_seq', 1, false);
+
+
+--
+-- Name: accommodations accommodations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.accommodations
+    ADD CONSTRAINT accommodations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: article_categories article_categories_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.article_categories
+    ADD CONSTRAINT article_categories_name_key UNIQUE (name);
+
+
+--
+-- Name: article_categories article_categories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.article_categories
+    ADD CONSTRAINT article_categories_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: article_likes article_likes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.article_likes
+    ADD CONSTRAINT article_likes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: article_sections article_sections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.article_sections
+    ADD CONSTRAINT article_sections_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: articles articles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.articles
+    ADD CONSTRAINT articles_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: articles articles_slug_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.articles
+    ADD CONSTRAINT articles_slug_unique UNIQUE (slug);
+
+
+--
+-- Name: comments comments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.comments
+    ADD CONSTRAINT comments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: competition_brackets competition_brackets_event_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.competition_brackets
+    ADD CONSTRAINT competition_brackets_event_id_key UNIQUE (event_id);
+
+
+--
+-- Name: competition_brackets competition_brackets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.competition_brackets
+    ADD CONSTRAINT competition_brackets_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: competition_matches competition_matches_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.competition_matches
+    ADD CONSTRAINT competition_matches_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: competition_rounds competition_rounds_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.competition_rounds
+    ADD CONSTRAINT competition_rounds_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: competition_teams competition_teams_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.competition_teams
+    ADD CONSTRAINT competition_teams_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: connection_notifications connection_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.connection_notifications
+    ADD CONSTRAINT connection_notifications_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: contact_requests contact_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contact_requests
+    ADD CONSTRAINT contact_requests_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: event_attendees event_attendees_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_attendees
+    ADD CONSTRAINT event_attendees_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: event_categories event_categories_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_categories
+    ADD CONSTRAINT event_categories_name_key UNIQUE (name);
+
+
+--
+-- Name: event_categories event_categories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_categories
+    ADD CONSTRAINT event_categories_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: event_entries event_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_entries
+    ADD CONSTRAINT event_entries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: event_suggestions event_suggestions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_suggestions
+    ADD CONSTRAINT event_suggestions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: events events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.events
+    ADD CONSTRAINT events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: events events_slug_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.events
+    ADD CONSTRAINT events_slug_unique UNIQUE (slug);
+
+
+--
+-- Name: group_event_comments group_event_comments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_event_comments
+    ADD CONSTRAINT group_event_comments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: group_event_reactions group_event_reactions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_event_reactions
+    ADD CONSTRAINT group_event_reactions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: group_events group_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_events
+    ADD CONSTRAINT group_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: group_memberships group_memberships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_memberships
+    ADD CONSTRAINT group_memberships_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: group_post_comments group_post_comments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_post_comments
+    ADD CONSTRAINT group_post_comments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: group_post_reactions group_post_reactions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_post_reactions
+    ADD CONSTRAINT group_post_reactions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: group_posts group_posts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_posts
+    ADD CONSTRAINT group_posts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: groups groups_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.groups
+    ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: groups groups_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.groups
+    ADD CONSTRAINT groups_slug_key UNIQUE (slug);
+
+
+--
+-- Name: hero_settings hero_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hero_settings
+    ADD CONSTRAINT hero_settings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: insider_tips insider_tips_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.insider_tips
+    ADD CONSTRAINT insider_tips_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: member_reviews member_reviews_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.member_reviews
+    ADD CONSTRAINT member_reviews_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: messages messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messages
+    ADD CONSTRAINT messages_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: newsletter_subscriptions newsletter_subscriptions_email_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.newsletter_subscriptions
+    ADD CONSTRAINT newsletter_subscriptions_email_unique UNIQUE (email);
+
+
+--
+-- Name: newsletter_subscriptions newsletter_subscriptions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.newsletter_subscriptions
+    ADD CONSTRAINT newsletter_subscriptions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: play_request_criteria play_request_criteria_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.play_request_criteria
+    ADD CONSTRAINT play_request_criteria_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: play_request_offer_criteria play_request_offer_criteria_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.play_request_offer_criteria
+    ADD CONSTRAINT play_request_offer_criteria_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: play_request_offers play_request_offers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.play_request_offers
+    ADD CONSTRAINT play_request_offers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: play_requests play_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.play_requests
+    ADD CONSTRAINT play_requests_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: podcast_comments podcast_comments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.podcast_comments
+    ADD CONSTRAINT podcast_comments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: podcast_likes podcast_likes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.podcast_likes
+    ADD CONSTRAINT podcast_likes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: podcasts podcasts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.podcasts
+    ADD CONSTRAINT podcasts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: podcasts podcasts_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.podcasts
+    ADD CONSTRAINT podcasts_slug_key UNIQUE (slug);
+
+
+--
+-- Name: poll_votes poll_votes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.poll_votes
+    ADD CONSTRAINT poll_votes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: polls polls_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.polls
+    ADD CONSTRAINT polls_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: polls polls_slug_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.polls
+    ADD CONSTRAINT polls_slug_unique UNIQUE (slug);
+
+
+--
+-- Name: profile_field_definitions profile_field_definitions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.profile_field_definitions
+    ADD CONSTRAINT profile_field_definitions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: profile_field_definitions profile_field_definitions_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.profile_field_definitions
+    ADD CONSTRAINT profile_field_definitions_slug_key UNIQUE (slug);
+
+
+--
+-- Name: profile_field_options profile_field_options_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.profile_field_options
+    ADD CONSTRAINT profile_field_options_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: profile_field_selector_values profile_field_selector_values_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.profile_field_selector_values
+    ADD CONSTRAINT profile_field_selector_values_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: profile_pictures profile_pictures_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.profile_pictures
+    ADD CONSTRAINT profile_pictures_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ranking_votes ranking_votes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ranking_votes
+    ADD CONSTRAINT ranking_votes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: review_categories review_categories_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.review_categories
+    ADD CONSTRAINT review_categories_name_key UNIQUE (name);
+
+
+--
+-- Name: review_categories review_categories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.review_categories
+    ADD CONSTRAINT review_categories_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: review_comments review_comments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.review_comments
+    ADD CONSTRAINT review_comments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: review_likes review_likes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.review_likes
+    ADD CONSTRAINT review_likes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: sessions sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sessions
+    ADD CONSTRAINT sessions_pkey PRIMARY KEY (sid);
+
+
+--
+-- Name: site_settings site_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.site_settings
+    ADD CONSTRAINT site_settings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: subscription_plans subscription_plans_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.subscription_plans
+    ADD CONSTRAINT subscription_plans_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: subscription_plans subscription_plans_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.subscription_plans
+    ADD CONSTRAINT subscription_plans_slug_key UNIQUE (slug);
+
+
+--
+-- Name: tee_time_offer_criteria tee_time_offer_criteria_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tee_time_offer_criteria
+    ADD CONSTRAINT tee_time_offer_criteria_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tee_time_offers tee_time_offers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tee_time_offers
+    ADD CONSTRAINT tee_time_offers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tee_time_reservations tee_time_reservations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tee_time_reservations
+    ADD CONSTRAINT tee_time_reservations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_connections user_connections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_connections
+    ADD CONSTRAINT user_connections_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_connections user_connections_requester_id_receiver_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_connections
+    ADD CONSTRAINT user_connections_requester_id_receiver_id_key UNIQUE (requester_id, receiver_id);
+
+
+--
+-- Name: user_profile_field_values user_profile_field_values_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_profile_field_values
+    ADD CONSTRAINT user_profile_field_values_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_profiles user_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_profiles
+    ADD CONSTRAINT user_profiles_pkey PRIMARY KEY (user_id);
+
+
+--
+-- Name: users users_email_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_email_unique UNIQUE (email);
+
+
+--
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: vibe_comments vibe_comments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.vibe_comments
+    ADD CONSTRAINT vibe_comments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: vibe_reactions vibe_reactions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.vibe_reactions
+    ADD CONSTRAINT vibe_reactions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: vibes vibes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.vibes
+    ADD CONSTRAINT vibes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: _migrations _migrations_name_key; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe._migrations
+    ADD CONSTRAINT _migrations_name_key UNIQUE (name);
+
+
+--
+-- Name: _migrations _migrations_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe._migrations
+    ADD CONSTRAINT _migrations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: _sync_status _sync_status_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe._sync_status
+    ADD CONSTRAINT _sync_status_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: _sync_status _sync_status_resource_account_key; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe._sync_status
+    ADD CONSTRAINT _sync_status_resource_account_key UNIQUE (resource, account_id);
+
+
+--
+-- Name: accounts accounts_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.accounts
+    ADD CONSTRAINT accounts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: active_entitlements active_entitlements_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.active_entitlements
+    ADD CONSTRAINT active_entitlements_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: charges charges_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.charges
+    ADD CONSTRAINT charges_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: checkout_session_line_items checkout_session_line_items_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.checkout_session_line_items
+    ADD CONSTRAINT checkout_session_line_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: checkout_sessions checkout_sessions_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.checkout_sessions
+    ADD CONSTRAINT checkout_sessions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: coupons coupons_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.coupons
+    ADD CONSTRAINT coupons_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: credit_notes credit_notes_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.credit_notes
+    ADD CONSTRAINT credit_notes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: customers customers_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.customers
+    ADD CONSTRAINT customers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: disputes disputes_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.disputes
+    ADD CONSTRAINT disputes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: early_fraud_warnings early_fraud_warnings_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.early_fraud_warnings
+    ADD CONSTRAINT early_fraud_warnings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: events events_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.events
+    ADD CONSTRAINT events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: features features_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.features
+    ADD CONSTRAINT features_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: invoices invoices_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.invoices
+    ADD CONSTRAINT invoices_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: _managed_webhooks managed_webhooks_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe._managed_webhooks
+    ADD CONSTRAINT managed_webhooks_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: _managed_webhooks managed_webhooks_url_account_unique; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe._managed_webhooks
+    ADD CONSTRAINT managed_webhooks_url_account_unique UNIQUE (url, account_id);
+
+
+--
+-- Name: payment_intents payment_intents_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.payment_intents
+    ADD CONSTRAINT payment_intents_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: payment_methods payment_methods_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.payment_methods
+    ADD CONSTRAINT payment_methods_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: payouts payouts_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.payouts
+    ADD CONSTRAINT payouts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: plans plans_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.plans
+    ADD CONSTRAINT plans_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: prices prices_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.prices
+    ADD CONSTRAINT prices_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: products products_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.products
+    ADD CONSTRAINT products_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: refunds refunds_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.refunds
+    ADD CONSTRAINT refunds_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: reviews reviews_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.reviews
+    ADD CONSTRAINT reviews_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: setup_intents setup_intents_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.setup_intents
+    ADD CONSTRAINT setup_intents_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: subscription_items subscription_items_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.subscription_items
+    ADD CONSTRAINT subscription_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: subscription_schedules subscription_schedules_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.subscription_schedules
+    ADD CONSTRAINT subscription_schedules_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: subscriptions subscriptions_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.subscriptions
+    ADD CONSTRAINT subscriptions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tax_ids tax_ids_pkey; Type: CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.tax_ids
+    ADD CONSTRAINT tax_ids_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: IDX_session_expire; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "IDX_session_expire" ON public.sessions USING btree (expire);
+
+
+--
+-- Name: group_member_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX group_member_unique ON public.group_memberships USING btree (group_id, user_id);
+
+
+--
+-- Name: member_reviews_slug_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX member_reviews_slug_unique ON public.member_reviews USING btree (slug);
+
+
+--
+-- Name: active_entitlements_lookup_key_key; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE UNIQUE INDEX active_entitlements_lookup_key_key ON stripe.active_entitlements USING btree (lookup_key) WHERE (lookup_key IS NOT NULL);
+
+
+--
+-- Name: features_lookup_key_key; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE UNIQUE INDEX features_lookup_key_key ON stripe.features USING btree (lookup_key) WHERE (lookup_key IS NOT NULL);
+
+
+--
+-- Name: idx_accounts_api_key_hashes; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX idx_accounts_api_key_hashes ON stripe.accounts USING gin (api_key_hashes);
+
+
+--
+-- Name: idx_accounts_business_name; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX idx_accounts_business_name ON stripe.accounts USING btree (business_name);
+
+
+--
+-- Name: idx_sync_status_resource_account; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX idx_sync_status_resource_account ON stripe._sync_status USING btree (resource, account_id);
+
+
+--
+-- Name: stripe_active_entitlements_customer_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_active_entitlements_customer_idx ON stripe.active_entitlements USING btree (customer);
+
+
+--
+-- Name: stripe_active_entitlements_feature_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_active_entitlements_feature_idx ON stripe.active_entitlements USING btree (feature);
+
+
+--
+-- Name: stripe_checkout_session_line_items_price_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_checkout_session_line_items_price_idx ON stripe.checkout_session_line_items USING btree (price);
+
+
+--
+-- Name: stripe_checkout_session_line_items_session_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_checkout_session_line_items_session_idx ON stripe.checkout_session_line_items USING btree (checkout_session);
+
+
+--
+-- Name: stripe_checkout_sessions_customer_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_checkout_sessions_customer_idx ON stripe.checkout_sessions USING btree (customer);
+
+
+--
+-- Name: stripe_checkout_sessions_invoice_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_checkout_sessions_invoice_idx ON stripe.checkout_sessions USING btree (invoice);
+
+
+--
+-- Name: stripe_checkout_sessions_payment_intent_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_checkout_sessions_payment_intent_idx ON stripe.checkout_sessions USING btree (payment_intent);
+
+
+--
+-- Name: stripe_checkout_sessions_subscription_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_checkout_sessions_subscription_idx ON stripe.checkout_sessions USING btree (subscription);
+
+
+--
+-- Name: stripe_credit_notes_customer_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_credit_notes_customer_idx ON stripe.credit_notes USING btree (customer);
+
+
+--
+-- Name: stripe_credit_notes_invoice_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_credit_notes_invoice_idx ON stripe.credit_notes USING btree (invoice);
+
+
+--
+-- Name: stripe_dispute_created_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_dispute_created_idx ON stripe.disputes USING btree (created);
+
+
+--
+-- Name: stripe_early_fraud_warnings_charge_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_early_fraud_warnings_charge_idx ON stripe.early_fraud_warnings USING btree (charge);
+
+
+--
+-- Name: stripe_early_fraud_warnings_payment_intent_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_early_fraud_warnings_payment_intent_idx ON stripe.early_fraud_warnings USING btree (payment_intent);
+
+
+--
+-- Name: stripe_invoices_customer_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_invoices_customer_idx ON stripe.invoices USING btree (customer);
+
+
+--
+-- Name: stripe_invoices_subscription_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_invoices_subscription_idx ON stripe.invoices USING btree (subscription);
+
+
+--
+-- Name: stripe_managed_webhooks_enabled_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_managed_webhooks_enabled_idx ON stripe._managed_webhooks USING btree (enabled);
+
+
+--
+-- Name: stripe_managed_webhooks_status_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_managed_webhooks_status_idx ON stripe._managed_webhooks USING btree (status);
+
+
+--
+-- Name: stripe_payment_intents_customer_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_payment_intents_customer_idx ON stripe.payment_intents USING btree (customer);
+
+
+--
+-- Name: stripe_payment_intents_invoice_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_payment_intents_invoice_idx ON stripe.payment_intents USING btree (invoice);
+
+
+--
+-- Name: stripe_payment_methods_customer_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_payment_methods_customer_idx ON stripe.payment_methods USING btree (customer);
+
+
+--
+-- Name: stripe_refunds_charge_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_refunds_charge_idx ON stripe.refunds USING btree (charge);
+
+
+--
+-- Name: stripe_refunds_payment_intent_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_refunds_payment_intent_idx ON stripe.refunds USING btree (payment_intent);
+
+
+--
+-- Name: stripe_reviews_charge_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_reviews_charge_idx ON stripe.reviews USING btree (charge);
+
+
+--
+-- Name: stripe_reviews_payment_intent_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_reviews_payment_intent_idx ON stripe.reviews USING btree (payment_intent);
+
+
+--
+-- Name: stripe_setup_intents_customer_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_setup_intents_customer_idx ON stripe.setup_intents USING btree (customer);
+
+
+--
+-- Name: stripe_tax_ids_customer_idx; Type: INDEX; Schema: stripe; Owner: -
+--
+
+CREATE INDEX stripe_tax_ids_customer_idx ON stripe.tax_ids USING btree (customer);
+
+
+--
+-- Name: _managed_webhooks handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe._managed_webhooks FOR EACH ROW EXECUTE FUNCTION public.set_updated_at_metadata();
+
+
+--
+-- Name: _sync_status handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe._sync_status FOR EACH ROW EXECUTE FUNCTION public.set_updated_at_metadata();
+
+
+--
+-- Name: accounts handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.accounts FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: active_entitlements handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.active_entitlements FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: charges handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.charges FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: checkout_session_line_items handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.checkout_session_line_items FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: checkout_sessions handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.checkout_sessions FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: coupons handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.coupons FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: customers handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.customers FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: disputes handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.disputes FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: early_fraud_warnings handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.early_fraud_warnings FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: events handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.events FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: features handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.features FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: invoices handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.invoices FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: payouts handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.payouts FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: plans handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.plans FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: prices handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.prices FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: products handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.products FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: refunds handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.refunds FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: reviews handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.reviews FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: subscriptions handle_updated_at; Type: TRIGGER; Schema: stripe; Owner: -
+--
+
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON stripe.subscriptions FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: active_entitlements fk_active_entitlements_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.active_entitlements
+    ADD CONSTRAINT fk_active_entitlements_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: charges fk_charges_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.charges
+    ADD CONSTRAINT fk_charges_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: checkout_session_line_items fk_checkout_session_line_items_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.checkout_session_line_items
+    ADD CONSTRAINT fk_checkout_session_line_items_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: checkout_sessions fk_checkout_sessions_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.checkout_sessions
+    ADD CONSTRAINT fk_checkout_sessions_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: credit_notes fk_credit_notes_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.credit_notes
+    ADD CONSTRAINT fk_credit_notes_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: customers fk_customers_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.customers
+    ADD CONSTRAINT fk_customers_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: disputes fk_disputes_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.disputes
+    ADD CONSTRAINT fk_disputes_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: early_fraud_warnings fk_early_fraud_warnings_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.early_fraud_warnings
+    ADD CONSTRAINT fk_early_fraud_warnings_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: features fk_features_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.features
+    ADD CONSTRAINT fk_features_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: invoices fk_invoices_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.invoices
+    ADD CONSTRAINT fk_invoices_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: _managed_webhooks fk_managed_webhooks_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe._managed_webhooks
+    ADD CONSTRAINT fk_managed_webhooks_account FOREIGN KEY (account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: payment_intents fk_payment_intents_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.payment_intents
+    ADD CONSTRAINT fk_payment_intents_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: payment_methods fk_payment_methods_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.payment_methods
+    ADD CONSTRAINT fk_payment_methods_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: plans fk_plans_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.plans
+    ADD CONSTRAINT fk_plans_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: prices fk_prices_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.prices
+    ADD CONSTRAINT fk_prices_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: products fk_products_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.products
+    ADD CONSTRAINT fk_products_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: refunds fk_refunds_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.refunds
+    ADD CONSTRAINT fk_refunds_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: reviews fk_reviews_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.reviews
+    ADD CONSTRAINT fk_reviews_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: setup_intents fk_setup_intents_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.setup_intents
+    ADD CONSTRAINT fk_setup_intents_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: subscription_items fk_subscription_items_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.subscription_items
+    ADD CONSTRAINT fk_subscription_items_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: subscription_schedules fk_subscription_schedules_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.subscription_schedules
+    ADD CONSTRAINT fk_subscription_schedules_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: subscriptions fk_subscriptions_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.subscriptions
+    ADD CONSTRAINT fk_subscriptions_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: _sync_status fk_sync_status_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe._sync_status
+    ADD CONSTRAINT fk_sync_status_account FOREIGN KEY (account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- Name: tax_ids fk_tax_ids_account; Type: FK CONSTRAINT; Schema: stripe; Owner: -
+--
+
+ALTER TABLE ONLY stripe.tax_ids
+    ADD CONSTRAINT fk_tax_ids_account FOREIGN KEY (_account_id) REFERENCES stripe.accounts(id);
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict 5R5IOmNlsTmnlkdZA2uJtDmhlur1y5mJsG0ZOFw0w0RCqLZeJcFqO6zNBN08ZVP
+
