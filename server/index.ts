@@ -3,10 +3,13 @@ import cors from "cors";
 import { registerRoutes } from "./routes";
 import { createServer } from "http";
 import path from "path";
-import { ensureTablesExist } from "./db";
+import { ensureTablesExist, tenantContext } from "./db";
 import { storage } from "./storage";
 import { WebhookHandlers } from './webhookHandlers';
 import { migrateDevDataToProduction } from './migrate-prod-data';
+import { getRequestHostname, resolveTenantFromHostname } from "./tenant-resolution";
+import cron from "node-cron";
+import { runDnsSslCheck } from "./dns-ssl-manager";
 
 async function seedSponsoredContent() {
   const miuraArticle = await storage.getArticleBySlug("miura-forged-irons");
@@ -96,6 +99,19 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+// TENANT RESOLVER
+app.use(async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const hostname = getRequestHostname(req);
+    const tenant = await resolveTenantFromHostname(hostname);
+    // console.log(`Resolved tenant for hostname "${hostname}": ${tenant ? tenant.id : "none"}`);
+    (req as any).tenantId = tenant?.id || null;
+    tenantContext.run((req as any).tenantId, () => next());
+  } catch (err) {
+    next(err);
+  }
+});
+
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
@@ -139,6 +155,18 @@ app.use((req, res, next) => {
   await seedSponsoredContent();
   await initStripe();
   await registerRoutes(httpServer, app);
+
+  // Schedule DNS check + SSL provisioning every 15 minutes
+  cron.schedule("*/15 * * * *", async () => {
+    log("Running scheduled DNS/SSL check...", "cron");
+    try {
+      const result = await runDnsSslCheck();
+      log(`DNS/SSL check complete: ${result.message}`, "cron");
+    } catch (err) {
+      console.error("[cron] DNS/SSL check failed:", err);
+    }
+  });
+  log("DNS/SSL cron scheduled (every 15 minutes)", "cron");
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

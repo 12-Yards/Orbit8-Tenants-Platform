@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { getRequestHostname, resolveTenantFromHostname } from "./tenant-resolution";
 import { insertNewsletterSchema, insertArticleSchema, insertEventSchema, insertHeroSettingsSchema, insertInsiderTipSchema, articleCategories, insertCommentSchema, vibeCategories, vibeTypes, vibeReactionTypes, insertVibeSchema, insertVibeReactionSchema, insertVibeCommentSchema, updateProfileSchema, insertEventSuggestionSchema, eventSuggestionStatus, insertMemberReviewSchema, insertPollSchema, insertSubscriptionPlanSchema, insertTeeTimeOfferSchema, insertTeeTimeOfferCriteriaSchema, insertPodcastCommentSchema, insertTenantSchema } from "@shared/schema";
 
 import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, optionalAuth, seedAdminUser } from "./auth";
@@ -13,6 +14,9 @@ import { randomUUID } from "crypto";
 import fs from "fs";
 import { stripeService } from "./stripeService";
 import { getStripePublishableKey } from "./stripeClient";
+import { ensureTenantNginxConfig } from "./nginx-tenant-config";
+import { registerDnsSslRoutes } from "./dns-ssl-manager";
+import { checkDomainHandler } from "./controllers/domainCheckController";
 
 function getFrontendBaseUrl(req: any): string {
   if (process.env.REPLIT_DEPLOYMENT) {
@@ -8926,6 +8930,98 @@ Sitemap: ${baseUrl}/sitemap.xml
     }
   });
 
+  app.post("/api/tenants/custom-domain/dns", isAdmin, async (req, res) => {
+    try {
+      const user = await prisma.users.findUnique({ where: { id: (req as any).userId } });
+      if (!user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      const customDomainSchema = z.object({
+        domainName: z.string().min(1, "domainName is required"),
+        applyNginx: z.boolean().optional().default(false),
+      });
+
+      const parsed = customDomainSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Invalid custom domain request",
+          details: parsed.error.flatten(),
+        });
+      }
+
+      const { domainName, applyNginx } = parsed.data;
+      const normalized = domainName
+        .trim()
+        .toLowerCase()
+        .replace(/^https?:\/\//, "")
+        .replace(/\/$/, "")
+        .split("/")[0]
+        .replace(/\.$/, "");
+
+      const isValidDomain = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i.test(normalized);
+      if (!isValidDomain) {
+        return res.status(400).json({ error: "Invalid domain name format" });
+      }
+
+      const baseDomain = normalized.replace(/^www\./, "");
+      const targetIp = process.env.SERVER_PUBLIC_IP || null;
+      const verificationToken = `orbit8-domain-verification=${baseDomain}`;
+
+      //let nginxWarning: string | null = null;
+      // if (applyNginx) {
+      //   try {
+      //     ensureTenantNginxConfig(baseDomain);
+      //   } catch (error) {
+      //     nginxWarning = error instanceof Error ? error.message : "Failed to update NGINX";
+      //     console.error("NGINX custom domain config update failed:", error);
+      //   }
+      // }
+
+      const dnsEntries = [
+        {
+          type: "A",
+          host: "@",
+          value: targetIp,
+          ttl: 300,
+          required: true,
+          note: targetIp ? "Points apex domain to Orbit8 host" : "Set NGINX_PUBLIC_IP or SERVER_PUBLIC_IP env var on backend",
+        },
+        {
+          type: "CNAME",
+          host: "www",
+          value: baseDomain,
+          ttl: 300,
+          required: false,
+          note: "Optional www alias",
+        },
+        {
+          type: "TXT",
+          host: "@",
+          value: verificationToken,
+          ttl: 300,
+          required: false,
+          note: "Optional ownership verification",
+        },
+      ];
+
+      return res.json({
+        domainName: baseDomain,
+        applyNginx,
+        //nginxWarning,
+        dnsEntries,
+        nextSteps: [
+          "Create DNS records in your registrar/DNS provider",
+          "Wait for propagation (can be a few minutes to 24h)",
+          "After propagation, create/update tenant with this domainName",
+        ],
+      });
+    } catch (error) {
+      console.error("Error generating custom domain DNS entries:", error);
+      return res.status(500).json({ error: "Failed to generate DNS entries" });
+    }
+  });
+
   app.post("/api/tenants", isAdmin, async (req, res) => {
     try {
       const user = await prisma.users.findUnique({ where: { id: (req as any).userId } });
@@ -9187,6 +9283,12 @@ Sitemap: ${baseUrl}/sitemap.xml
       res.status(500).json({ error: "Failed to create tenant" });
     }
   });
+
+  registerDnsSslRoutes(app);
+
+  // GET /api/domain/check?domain=<domain>
+  // Returns whether the given domain is fully configured (isDNSConfigured === 1)
+  app.get("/api/domain/check", checkDomainHandler);
 
   return httpServer;
 }
